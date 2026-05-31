@@ -1,0 +1,2739 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>从 0 到 1 上线一个 App — 完整知识地图</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue:    #1a73e8;
+  --green:   #0f9d58;
+  --orange:  #f4a400;
+  --red:     #db4437;
+  --purple:  #7c4dff;
+  --teal:    #00bcd4;
+  --dark:    #1a1a2e;
+  --bg:      #f5f7fa;
+  --card-bg: #ffffff;
+  --text:    #2d3748;
+  --muted:   #718096;
+  --border:  #e2e8f0;
+}
+
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+
+/* ── Hero ── */
+.hero {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+  color: #fff; padding: 60px 40px 52px; text-align: center;
+}
+.hero h1 { font-size: 36px; font-weight: 800; letter-spacing: -1px; }
+.hero .sub { margin-top: 12px; font-size: 16px; opacity: .7; max-width: 600px; margin-left: auto; margin-right: auto; }
+.hero .tags { margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.hero .tag { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2); border-radius: 20px; padding: 4px 14px; font-size: 12px; }
+
+.container { max-width: 1060px; margin: 0 auto; padding: 48px 24px 80px; }
+
+/* ── Phase header ── */
+.phase {
+  display: flex; align-items: center; gap: 16px;
+  margin: 56px 0 24px;
+}
+.phase-num {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--phase-color); color: #fff;
+  font-size: 18px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.phase-title { font-size: 22px; font-weight: 800; color: var(--dark); }
+.phase-desc  { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.phase-line  { flex: 1; height: 2px; background: linear-gradient(to right, var(--phase-color), transparent); }
+
+/* ── Knowledge Card ── */
+.kcard {
+  background: var(--card-bg);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(0,0,0,.06);
+  transition: box-shadow .2s;
+}
+.kcard:hover { box-shadow: 0 6px 24px rgba(0,0,0,.1); }
+
+.kcard-head {
+  display: flex; align-items: center; gap: 14px;
+  padding: 18px 24px 14px;
+  border-left: 5px solid var(--kc-color, #ccc);
+  cursor: pointer;
+}
+.kcard-head .icon { font-size: 26px; flex-shrink: 0; }
+.kcard-head .meta { flex: 1; }
+.kcard-head .meta h3 { font-size: 16px; font-weight: 700; color: var(--dark); }
+.kcard-head .meta .tagline { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.kcard-head .links { display: flex; gap: 8px; flex-wrap: wrap; }
+.doc-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600;
+  padding: 4px 10px; border-radius: 20px;
+  border: 1.5px solid var(--kc-color, #ccc);
+  color: var(--kc-color, #555);
+  text-decoration: none;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.doc-link:hover { background: var(--kc-color); color: #fff; }
+
+.kcard-body { padding: 0 24px 22px 24px; }
+
+/* Explain box */
+.explain {
+  background: #f8faff; border-radius: 10px; padding: 16px 18px;
+  margin-bottom: 16px; border: 1px solid #e8eef8;
+}
+.explain .what { font-size: 13px; color: var(--text); line-height: 1.8; }
+.explain .why  { font-size: 12px; color: var(--muted); margin-top: 8px; padding-top: 8px; border-top: 1px solid #e8eef8; }
+
+/* Example box */
+.example {
+  background: #fffbf0; border-radius: 10px; padding: 14px 18px;
+  border-left: 3px solid var(--orange);
+  font-size: 12.5px; color: #5a4a00; line-height: 1.8;
+}
+.example .ex-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--orange); margin-bottom: 6px;
+}
+.example code {
+  background: rgba(244,164,0,.15); padding: 1px 5px;
+  border-radius: 3px; font-size: 11px; font-family: monospace;
+}
+
+/* Key points list */
+.kpoints { list-style: none; padding: 0; margin: 12px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; }
+.kpoints li {
+  font-size: 12.5px; color: var(--text);
+  padding: 5px 0 5px 20px; position: relative;
+  border-bottom: 1px solid var(--border); line-height: 1.6;
+}
+.kpoints li::before {
+  content: '▸'; position: absolute; left: 0;
+  color: var(--kc-color, var(--blue)); font-size: 11px; top: 6px;
+}
+@media (max-width: 640px) { .kpoints { grid-template-columns: 1fr; } }
+
+/* ── Flowchart ── */
+.flow-section {
+  background: var(--card-bg); border-radius: 16px;
+  padding: 40px 32px; box-shadow: 0 2px 16px rgba(0,0,0,.08);
+  margin-top: 56px;
+}
+.flow-section h2 { font-size: 22px; font-weight: 800; color: var(--dark); margin-bottom: 8px; }
+.flow-section .flow-sub { font-size: 13px; color: var(--muted); margin-bottom: 36px; }
+
+.flow { display: flex; flex-direction: column; align-items: center; }
+
+.fnode {
+  display: flex; align-items: center; gap: 14px;
+  border-radius: 12px; padding: 14px 22px;
+  width: 100%; max-width: 680px;
+  border: 2px solid var(--fn-border, #ddd);
+  background: var(--fn-bg, #fff);
+}
+.fnode-ico { font-size: 22px; flex-shrink: 0; }
+.fnode-body { flex: 1; }
+.fnode-title { font-size: 14px; font-weight: 700; color: var(--dark); }
+.fnode-detail { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.6; }
+.fnode-detail b { color: var(--text); }
+.fnode-badge {
+  font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 12px;
+  background: var(--fn-badge-bg, #f0f2f5); color: var(--fn-badge-color, #555);
+  flex-shrink: 0;
+}
+
+.fnode.start, .fnode.done {
+  justify-content: center; border-radius: 40px;
+  max-width: 360px; border-width: 0;
+}
+.fnode.start { background: var(--dark); }
+.fnode.start .fnode-title { color: #fff; font-size: 16px; }
+.fnode.done  { background: var(--green); }
+.fnode.done .fnode-title  { color: #fff; font-size: 16px; }
+
+.farrow { width: 2px; height: 26px; background: #cbd5e0; position: relative; flex-shrink: 0; }
+.farrow::after {
+  content: ''; position: absolute; bottom: -5px; left: -4px;
+  border: 5px solid transparent; border-top: 7px solid #cbd5e0;
+}
+.farrow-wrap { display: flex; justify-content: center; width: 100%; }
+
+.fnode.phase-a { --fn-bg:#e8f5e9; --fn-border:#0f9d58; }
+.fnode.phase-b { --fn-bg:#e3f2fd; --fn-border:#1a73e8; }
+.fnode.phase-c { --fn-bg:#fff8e1; --fn-border:#f4a400; }
+.fnode.phase-d { --fn-bg:#fce4ec; --fn-border:#db4437; }
+.fnode.phase-e { --fn-bg:#f3e5f5; --fn-border:#7c4dff; }
+.fnode.warn    { --fn-bg:#fff3e0; --fn-border:#ff9800; }
+
+/* ── Checklist ── */
+.checklist-wrap {
+  background: var(--card-bg); border-radius: 16px; padding: 36px 32px;
+  box-shadow: 0 2px 16px rgba(0,0,0,.08); margin-top: 40px;
+}
+.checklist-wrap h2 { font-size: 20px; font-weight: 800; color: var(--dark); margin-bottom: 24px; }
+.cl-section { margin-bottom: 28px; }
+.cl-section h4 {
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--muted); margin-bottom: 10px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.cl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+@media (max-width: 640px) { .cl-grid { grid-template-columns: 1fr; } }
+.cl-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; }
+.cl-box { width: 18px; height: 18px; border: 2px solid #cbd5e0; border-radius: 4px; flex-shrink: 0; margin-top: 2px; }
+.cl-text { font-size: 13px; color: var(--text); line-height: 1.5; }
+.cl-text small { display: block; font-size: 11px; color: var(--muted); }
+
+footer { text-align: center; padding: 32px; font-size: 12px; color: var(--muted); }
+
+/* ── TOC Sidebar ── */
+#toc-toggle {
+  position: fixed; right: 0; top: 50%;
+  transform: translateY(-50%);
+  z-index: 1001;
+  background: var(--dark); color: #fff;
+  border: none; border-radius: 8px 0 0 8px;
+  padding: 14px 7px; cursor: pointer;
+  font-size: 13px; font-weight: 700;
+  writing-mode: vertical-rl; letter-spacing: 3px;
+  transition: right .28s ease, background .2s;
+  box-shadow: -2px 0 10px rgba(0,0,0,.18);
+  line-height: 1;
+}
+#toc-toggle:hover { background: #0f3460; }
+#toc-toggle.open { right: 272px; }
+
+#toc-sidebar {
+  position: fixed; right: -280px; top: 0;
+  height: 100vh; width: 272px;
+  background: #fff;
+  border-left: 1px solid var(--border);
+  box-shadow: -4px 0 24px rgba(0,0,0,.12);
+  z-index: 1000;
+  transition: right .28s ease;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+#toc-sidebar.open { right: 0; }
+
+#toc-head {
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px; font-weight: 800; color: var(--dark);
+  flex-shrink: 0; background: var(--bg);
+  display: flex; align-items: center; justify-content: space-between;
+}
+#toc-head span { opacity: .5; font-size: 11px; font-weight: 400; }
+
+#toc-nav { overflow-y: auto; flex: 1; padding: 6px 0 24px; }
+
+/* Phase row */
+.toc-phase-row {
+  display: flex; align-items: center; gap: 0;
+  border-left: 3px solid transparent;
+  transition: border-color .15s;
+}
+.toc-phase-row.active { border-left-color: var(--dark); }
+
+.toc-phase-link {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px 7px 13px;
+  text-decoration: none; color: var(--dark);
+  font-size: 11.5px; font-weight: 700;
+  transition: background .15s;
+}
+.toc-phase-link:hover { background: var(--bg); }
+
+.toc-num {
+  width: 19px; height: 19px; border-radius: 50%;
+  background: var(--dark); color: #fff;
+  font-size: 9px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.toc-expand {
+  padding: 6px 10px; background: none; border: none;
+  color: var(--muted); cursor: pointer; font-size: 11px;
+  flex-shrink: 0; transition: transform .2s;
+}
+.toc-expand.open { transform: rotate(90deg); }
+
+/* Card sub-links */
+.toc-cards { display: none; }
+.toc-cards.open { display: block; }
+
+.toc-card-link {
+  display: block;
+  padding: 3px 14px 3px 44px;
+  font-size: 11px; color: var(--muted);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  line-height: 1.6;
+  transition: color .15s, border-color .15s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.toc-card-link:hover { color: var(--text); }
+.toc-card-link.active { color: var(--blue); border-left-color: var(--blue); font-weight: 600; }
+
+/* Extra links (flowcharts, checklist) */
+.toc-divider { height: 1px; background: var(--border); margin: 8px 14px; }
+
+.toc-extra {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 14px;
+  text-decoration: none; color: var(--muted);
+  font-size: 11.5px; font-weight: 600;
+  border-left: 3px solid transparent;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.toc-extra:hover { background: var(--bg); color: var(--text); }
+.toc-extra.active { color: var(--blue); border-left-color: var(--blue); background: var(--bg); }
+
+@media (max-width: 640px) {
+  #toc-sidebar { width: 86vw; right: -86vw; }
+  #toc-toggle.open { right: calc(86vw); }
+}
+
+/* ── Split flow node (parallel Android/iOS) ── */
+.fnode-split {
+  display: flex; gap: 14px; width: 100%; max-width: 720px;
+}
+.fnode-lane {
+  flex: 1; border-radius: 10px; padding: 12px 16px;
+  font-size: 12px; line-height: 1.8; color: var(--text);
+  border: 1.5px solid var(--lane-color, #ddd);
+  background: var(--lane-bg, #fff);
+}
+.fnode-lane .lane-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--lane-color, #888); margin-bottom: 6px;
+}
+.fnode-lane.android { --lane-color: #3ddc84; --lane-bg: #f0fdf4; }
+.fnode-lane.ios     { --lane-color: #555;    --lane-bg: #f5f5f7; }
+
+/* Phase badge inside flow */
+.fstage {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; max-width: 720px;
+  background: var(--stage-bg, #f0f2f5); border-radius: 8px;
+  padding: 8px 16px; margin: 4px 0;
+}
+.fstage-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .6px; color: var(--stage-color, #555); white-space: nowrap;
+}
+.fstage-line { flex: 1; height: 1px; background: var(--stage-color, #ccc); opacity: .4; }
+</style>
+</head>
+<body>
+
+<!-- TOC Sidebar -->
+<button id="toc-toggle" title="目录">目录</button>
+<div id="toc-sidebar">
+  <div id="toc-head">
+    <span style="font-size:13px;font-weight:800;opacity:1;">📑 目录</span>
+    <span>点击跳转</span>
+  </div>
+  <nav id="toc-nav"></nav>
+</div>
+
+<div class="hero">
+  <h1>从 0 到 1 上线一个 App</h1>
+  <p class="sub">完整知识地图：从框架选型、多品牌打包、签名发布，到广告变现与应用商店运营，每个环节附官方文档。</p>
+  <div class="tags">
+    <span class="tag">开发环境搭建</span>
+    <span class="tag">Flutter 跨端开发</span>
+    <span class="tag">状态管理 &amp; 网络层</span>
+    <span class="tag">Android &amp; iOS 打包</span>
+    <span class="tag">Firebase &amp; 推送通知</span>
+    <span class="tag">Google Play &amp; App Store</span>
+    <span class="tag">隐私合规 &amp; 审核</span>
+    <span class="tag">广告变现</span>
+    <span class="tag">多品牌马甲包</span>
+    <span class="tag">CI/CD 自动化</span>
+    <span class="tag">本地数据库</span>
+    <span class="tag">调试与测试</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ═══════════════════════════════════════════
+     PHASE 1  开发环境搭建
+═══════════════════════════════════════════ -->
+<div class="phase" style="--phase-color:#546e7a;">
+  <div class="phase-num">1</div>
+  <div>
+    <div class="phase-title">开发环境搭建</div>
+    <div class="phase-desc">在开始写代码之前，配置好本地的开发工具链</div>
+  </div>
+  <div class="phase-line"></div>
+</div>
+
+<!-- Android Studio & SDK -->
+<div class="kcard" style="--kc-color:#3ddc84;">
+  <div class="kcard-head">
+    <div class="icon">🛠️</div>
+    <div class="meta">
+      <h3>Android Studio &amp; Android SDK</h3>
+      <div class="tagline">Android 官方 IDE，内置模拟器、Logcat 调试、Gradle 构建等一切工具</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.android.com/studio/install" target="_blank">📖 安装文档</a>
+      <a class="doc-link" href="https://developer.android.com/tools/sdkmanager" target="_blank">📦 SDK Manager</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">Android Studio 是基于 IntelliJ IDEA 的官方 IDE。安装时会附带 Android SDK（系统 API 库）、Android Emulator（模拟器）、ADB（调试桥）等工具。日常开发主要用它编写代码、查看 Logcat 日志、运行模拟器。<br><br>
+      <b>SDK Manager</b>（Tools → SDK Manager）用来管理已安装的 Android API 版本和构建工具（Build Tools）。<b>AVD Manager</b>（Tools → Device Manager）用来创建和管理模拟器。</div>
+      <div class="why">💡 Flutter 开发也可以用 VS Code，但原生 Android 调试（查看布局、查 JNI 报错）在 Android Studio 里更方便。</div>
+    </div>
+    <ul class="kpoints">
+      <li><b>Android SDK Platform</b>：对应 API Level，如 API 35 = Android 15</li>
+      <li><b>Build Tools</b>：Gradle 调用的编译工具，通常装最新版即可</li>
+      <li><b>NDK</b>：Native Development Kit，调用 C/C++ 代码时需要</li>
+      <li><b>ADB</b>：命令行工具，可安装 APK、查看日志、截图</li>
+      <li><b>Logcat</b>：实时查看 App 运行日志，调试 crash 的主要手段</li>
+      <li>模拟器比真机慢，建议同时准备一台 Android 真机</li>
+    </ul>
+  </div>
+</div>
+
+<!-- JDK 版本 -->
+<div class="kcard" style="--kc-color:#546e7a;">
+  <div class="kcard-head">
+    <div class="icon">☕</div>
+    <div class="meta">
+      <h3>JDK — Java 运行环境</h3>
+      <div class="tagline">Gradle 构建系统用 Java 写的，必须有 JDK 才能运行</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.android.com/build/jdks" target="_blank">📖 Android JDK 文档</a>
+      <a class="doc-link" href="https://adoptium.net/" target="_blank">☕ Temurin JDK</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">Gradle 本身是 Java 程序，必须有 JDK 才能运行。Android Studio 内置了一个 JetBrains Runtime（JBR），但它并不总是与所有 Gradle/Android Gradle Plugin 版本兼容。<br><br>
+      推荐单独安装 <b>Eclipse Temurin JDK 17</b>（OpenJDK 的社区发行版），并在 <code>~/.gradle/gradle.properties</code> 中指定：<br>
+      <code>org.gradle.java.home=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home</code></div>
+      <div class="why">💡 常见坑：Android Studio 的 JBR 在某些系统下与 android-34 的 transforms 不兼容，会报 jlink 错误。换成 Temurin JDK 17 可解决。</div>
+    </div>
+    <div class="example">
+      <div class="ex-title">📌 本项目踩坑</div>
+      构建时报错 <code>JdkImageTransform: core-for-system-modules.jar jlink process failure</code>，原因是 Android Studio 内置 JBR 与当前 Gradle 版本不兼容。<br>
+      解决方法：在 <code>~/.gradle/gradle.properties</code> 中添加 <code>org.gradle.java.home=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home</code>，全局切换到 Temurin JDK 17。
+    </div>
+  </div>
+</div>
+
+<!-- Xcode & iOS 工具链 -->
+<div class="kcard" style="--kc-color:#555;">
+  <div class="kcard-head">
+    <div class="icon">🍎</div>
+    <div class="meta">
+      <h3>Xcode &amp; iOS 工具链（macOS only）</h3>
+      <div class="tagline">开发 iOS App 的强制要求；在 Mac 上同时搭好可兼顾双端</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.apple.com/xcode/" target="_blank">📖 Xcode 文档</a>
+      <a class="doc-link" href="https://docs.flutter.dev/get-started/install/macos/mobile-ios" target="_blank">🍎 Flutter iOS 环境</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">iOS App 只能在 macOS 上编译，必须安装 <b>Xcode</b>（App Store 免费下载）。Xcode 内置 iOS 模拟器、Swift/Objective-C 编译器、Instruments 性能分析工具。<br><br>
+      安装后还需要运行 <code>sudo xcode-select --switch /Applications/Xcode.app</code> 和 <code>sudo xcodebuild -runFirstLaunch</code> 完成命令行工具初始化；Flutter 还要求安装 <code>CocoaPods</code>（iOS 依赖管理器）。</div>
+      <div class="why">💡 Windows / Linux 无法编译 iOS 包，这是 Apple 的硬限制。团队内通常需要至少一台 Mac 负责 iOS 构建。</div>
+    </div>
+    <ul class="kpoints">
+      <li><b>Simulator</b>：Xcode 内置 iOS 模拟器，无需真机可快速测试</li>
+      <li><b>CocoaPods</b>：iOS 原生依赖管理，类似 Android 的 Gradle 依赖</li>
+      <li><b>命令行工具</b>：<code>xcode-select --install</code> 安装基础工具</li>
+      <li>flutter doctor 会检查 Xcode 安装状态并给出修复建议</li>
+      <li>真机调试需要 Apple ID，上架需要付费开发者账号（$99/年）</li>
+      <li><code>flutter build ipa</code> 生成 iOS 安装包</li>
+    </ul>
+  </div>
+</div>
+
+<!-- flutter doctor -->
+<div class="kcard" style="--kc-color:#1a73e8;">
+  <div class="kcard-head">
+    <div class="icon">🩺</div>
+    <div class="meta">
+      <h3>flutter doctor — 环境自检命令</h3>
+      <div class="tagline">一键诊断 Flutter 开发环境是否完整，缺什么补什么</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://docs.flutter.dev/get-started/install" target="_blank">📖 Flutter 安装文档</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">运行 <code>flutter doctor</code> 会自动检查：Flutter SDK、Dart SDK、Android Studio、Android 许可证、Xcode、CocoaPods、VS Code 插件等是否都已正确安装。每一项显示 ✅（正常）或 ✗（缺失/错误）并给出修复建议。<br><br>
+      新机器搭环境时，通常的流程是：安装 Flutter → 运行 flutter doctor → 按提示逐条修复 → 再运行直到全绿。</div>
+      <div class="why">💡 flutter doctor -v 可以看到详细版本信息，遇到构建问题时通常先把这个输出发给同事，方便排查环境差异。</div>
+    </div>
+    <div class="example">
+      <div class="ex-title">典型输出</div>
+      <code>[✓] Flutter (Channel stable, 3.24.5)</code><br>
+      <code>[✓] Android toolchain (Android SDK 35)</code><br>
+      <code>[✓] Xcode - develop for iOS and macOS</code><br>
+      <code>[!] Android Studio (version 2024.x) — 某插件未安装</code>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PHASE 2  技术选型与框架（原 Phase 1）
+═══════════════════════════════════════════ -->
+<div class="phase" style="--phase-color:#1a73e8;">
+  <div class="phase-num">2</div>
+  <div>
+    <div class="phase-title">技术选型与开发框架</div>
+    <div class="phase-desc">确定用什么语言和框架来构建 App</div>
+  </div>
+  <div class="phase-line"></div>
+</div>
+
+<!-- Flutter -->
+<div class="kcard" style="--kc-color:#1a73e8;">
+  <div class="kcard-head">
+    <div class="icon">💙</div>
+    <div class="meta">
+      <h3>Flutter — 跨平台 UI 框架</h3>
+      <div class="tagline">一套代码同时运行在 Android、iOS、Web、桌面</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://flutter.dev/docs" target="_blank">📖 官方文档</a>
+      <a class="doc-link" href="https://dart.dev/guides" target="_blank">🎯 Dart 语言</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">Flutter 是 Google 开源的 UI 工具包，使用 <b>Dart 语言</b>编写，可以从一份代码编译出原生性能的 Android 和 iOS App。它有自己的渲染引擎（Skia/Impeller），不依赖系统原生控件，因此界面在各平台表现一致。</div>
+      <div class="why">💡 为什么用它：一套代码多端复用，大幅降低开发和维护成本，特别适合需要同时上线 Android 和 iOS 的产品。</div>
+    </div>
+    <div class="example">
+      <div class="ex-title">📌 本项目示例</div>
+      本项目（othercall）使用 Flutter 3.24.5，所有 UI 逻辑写在 <code>lib/</code> 目录中，通过 <code>flutter build appbundle</code> 命令编译为 Android AAB 包。
+    </div>
+  </div>
+</div>
+
+<!-- FVM -->
+<div class="kcard" style="--kc-color:#0f9d58;">
+  <div class="kcard-head">
+    <div class="icon">🔄</div>
+    <div class="meta">
+      <h3>FVM — Flutter 版本管理</h3>
+      <div class="tagline">让不同项目使用不同版本的 Flutter，互不干扰</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://fvm.app/docs/getting_started/overview" target="_blank">📖 FVM 文档</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">FVM（Flutter Version Management）类似 Node.js 的 nvm，让你在同一台电脑上为不同项目指定不同的 Flutter 版本，避免版本升级破坏旧项目。</div>
+      <div class="why">💡 为什么需要：Flutter 更新频繁，不同项目可能依赖不同版本，用 FVM 可以锁定版本，保证团队环境一致。</div>
+    </div>
+    <div class="example">
+      <div class="ex-title">📌 本项目示例</div>
+      本项目 <code>local.properties</code> 中配置了 <code>flutter.sdk=/Users/.../fvm/versions/3.24.5</code>，锁定 Flutter 版本为 3.24.5。
+    </div>
+  </div>
+</div>
+
+
+<!-- 网络层 -->
+<div class="kcard" style="--kc-color:#0097a7;">
+  <div class="kcard-head">
+    <div class="icon">🌐</div>
+    <div class="meta">
+      <h3>网络层 — dio / Retrofit / HTTP 通信</h3>
+      <div class="tagline">App 与服务器交换数据的通道；如何发请求、处理错误、统一管理 Token</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://pub.dev/packages/dio" target="_blank">📖 dio 文档</a>
+      <a class="doc-link" href="https://pub.dev/packages/retrofit" target="_blank">🔧 retrofit</a>
+      <a class="doc-link" href="https://docs.flutter.dev/data-and-backend/networking" target="_blank">🌐 Flutter 网络</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        App 与服务器通信的基础是 HTTP 请求。Flutter 生态中最主流的 HTTP 库是 <b>dio</b>，它比内置的 <code>http</code> 包功能更完整，支持拦截器、文件上传、超时、取消请求等。<br><br>
+        <b>dio</b>：直接发起 GET/POST 等请求，手动处理响应和错误。灵活但重复代码多。<br><br>
+        <b>Retrofit（retrofit + build_runner）</b>：在 dio 之上的声明式封装。用注解描述 API 接口（类似 Java 的 Retrofit），自动生成请求代码，接口定义清晰，适合接口数量多的项目。<br><br>
+        <b>Interceptor（拦截器）</b>：dio 的核心机制，可以在请求发出前/响应返回后统一处理逻辑，如自动加 Token 到 Header、统一处理 401 重新登录、记录请求日志。
+      </div>
+      <div class="why">💡 一个成熟的网络层通常包括：dio 实例 + 若干 Interceptor（Token注入、错误处理、日志）+ Retrofit 定义的接口层，这样每个业务只需调用接口方法，不关心底层细节。</div>
+    </div>
+
+    <div style="background:#e0f7fa;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #80deea;">
+      <div style="font-size:12px;font-weight:700;color:#0097a7;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🔁 一次 API 请求的完整生命周期</div>
+      <div style="font-size:12.5px;color:#2d3748;line-height:2.2;">
+        ① 业务代码调用 Retrofit 接口方法<br>
+        ② <b>请求拦截器</b>：自动注入 Authorization Token、添加公共参数<br>
+        ③ dio 发出 HTTP 请求到服务器<br>
+        ④ 服务器返回响应<br>
+        ⑤ <b>响应拦截器</b>：统一解析业务错误码（如 401 → 跳登录页，网络超时 → 弹提示）<br>
+        ⑥ Retrofit 将 JSON 反序列化为 Dart 对象<br>
+        ⑦ 业务代码拿到结果，更新 UI
+      </div>
+    </div>
+
+    <ul class="kpoints">
+      <li><b>BaseOptions</b>：统一配置 baseUrl、超时时长、公共 Header</li>
+      <li><b>Interceptor</b>：onRequest / onResponse / onError 三个钩子</li>
+      <li><b>CancelToken</b>：页面销毁时取消未完成请求，防止内存泄漏</li>
+      <li>HTTP/2：dio 可搭配 <code>dio_http2_adapter</code> 启用 HTTP/2，减少连接建立开销</li>
+      <li>Retrofit 接口用 <code>@GET</code> / <code>@POST</code> 注解，<code>build_runner</code> 自动生成实现类</li>
+      <li>调试网络请求：<code>talker_dio_logger</code> 插件可在控制台美化打印请求/响应</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 本项目示例</div>
+      本项目同时使用 <code>dio: ^5.8.0</code> 和 <code>retrofit: ^4.5.0</code>。Retrofit 定义各业务接口（登录、充值、联系人同步等），<code>build_runner</code> 生成 <code>.g.dart</code> 文件。<br><br>
+      <code>talker_dio_logger: ^5.0.2</code> 作为 dio 的 Interceptor 接入，开发阶段在控制台以彩色格式打印每个请求的 URL、Header、Body 和响应，方便调试接口问题。<br><br>
+      <code>dio_http2_adapter: ^2.6.0</code> 用于对特定服务器启用 HTTP/2 连接，减少 VoIP 相关 API 的延迟。
+    </div>
+  </div>
+</div>
+
+<!-- 状态管理 -->
+<div class="kcard" style="--kc-color:#7b1fa2;">
+  <div class="kcard-head">
+    <div class="icon">🔄</div>
+    <div class="meta">
+      <h3>状态管理 — Provider / GetX / BLoC</h3>
+      <div class="tagline">解决「数据变了，UI 怎么知道要刷新」的问题；Flutter 生态有多种方案</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://docs.flutter.dev/data-and-backend/state-mgmt/options" target="_blank">📖 状态管理对比</a>
+      <a class="doc-link" href="https://pub.dev/packages/provider" target="_blank">🟣 Provider</a>
+      <a class="doc-link" href="https://pub.dev/packages/get" target="_blank">⚡ GetX</a>
+      <a class="doc-link" href="https://pub.dev/packages/flutter_bloc" target="_blank">🧱 BLoC</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        Flutter 的 UI 是「数据驱动」的：数据变了，调用 <code>setState()</code> 触发 Widget 重建，UI 自动更新。但 <code>setState()</code> 只在当前 Widget 内生效，当多个页面需要共享同一份数据时（如用户登录状态、余额、通话状态），就需要<b>状态管理方案</b>来跨 Widget 传递和同步数据。<br><br>
+        三种主流方案的定位：<br>
+        <b>Provider</b>：官方推荐，轻量、与 Flutter 理念契合，适合中小型项目。<br>
+        <b>GetX</b>：一体化框架，集状态管理、路由、依赖注入于一身，写法最简洁，本项目大量使用。<br>
+        <b>BLoC</b>：严格的单向数据流（事件→状态），测试友好，适合业务复杂的大型项目。
+      </div>
+      <div class="why">💡 没有「最好」的方案，只有适合项目规模和团队习惯的方案。新手从 Provider 入门最平滑；想快速开发选 GetX；对代码可测试性要求高选 BLoC。</div>
+    </div>
+
+    <div style="background:#f3e5f5;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #ce93d8;">
+      <div style="font-size:12px;font-weight:700;color:#7b1fa2;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">📊 三种方案对比</div>
+      <div style="font-size:12.5px;color:#2d3748;line-height:2.2;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <tr style="border-bottom:1px solid #e1bee7;">
+            <th style="text-align:left;padding:4px 8px;color:#7b1fa2;"></th>
+            <th style="text-align:left;padding:4px 8px;color:#7b1fa2;">Provider</th>
+            <th style="text-align:left;padding:4px 8px;color:#7b1fa2;">GetX</th>
+            <th style="text-align:left;padding:4px 8px;color:#7b1fa2;">BLoC</th>
+          </tr>
+          <tr style="border-bottom:1px solid #f3e5f5;">
+            <td style="padding:4px 8px;font-weight:600;">学习曲线</td>
+            <td style="padding:4px 8px;">低</td>
+            <td style="padding:4px 8px;">低</td>
+            <td style="padding:4px 8px;">高</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3e5f5;">
+            <td style="padding:4px 8px;font-weight:600;">代码量</td>
+            <td style="padding:4px 8px;">中</td>
+            <td style="padding:4px 8px;">少</td>
+            <td style="padding:4px 8px;">多</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3e5f5;">
+            <td style="padding:4px 8px;font-weight:600;">可测试性</td>
+            <td style="padding:4px 8px;">好</td>
+            <td style="padding:4px 8px;">一般</td>
+            <td style="padding:4px 8px;">极好</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 8px;font-weight:600;">额外功能</td>
+            <td style="padding:4px 8px;">仅状态管理</td>
+            <td style="padding:4px 8px;">路由+依赖注入</td>
+            <td style="padding:4px 8px;">仅状态管理</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <ul class="kpoints">
+      <li>Provider：<code>ChangeNotifier</code> + <code>notifyListeners()</code> + <code>Consumer&lt;T&gt;</code> 三件套</li>
+      <li>GetX：<code>Obx(() =&gt; Text(controller.name))</code>，响应式变量加 <code>.obs</code> 后缀即可</li>
+      <li>BLoC：Event → Bloc → State，UI 只能发 Event，不能直接改数据</li>
+      <li>同一个项目混用多种方案是正常的，不同场景选最合适的</li>
+      <li>全局状态（登录用户信息）用状态管理；局部 UI 状态（按钮是否 loading）用 <code>setState()</code> 即可</li>
+      <li>GetX 的 <code>Get.to()</code> 路由和 <code>Get.find()</code> 依赖注入是额外加分项</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 本项目示例</div>
+      本项目混用了三种方案，各有侧重：<br><br>
+      <b>Provider</b>（<code>provider: ^6.1.5</code>）：管理用户账号信息、通话状态等需要跨多个页面共享的全局数据。<br><br>
+      <b>GetX</b>（<code>get: 4.6.6</code>）：用于页面路由跳转（<code>Get.to()</code> / <code>Get.back()</code>）、Controller 的依赖注入，以及部分页面内的轻量状态管理。<br><br>
+      <b>BLoC</b>（<code>flutter_bloc: ^8.1.5</code>）：用于业务逻辑较复杂的模块（如充值流程、广告加载状态机），事件驱动保证状态流转清晰可追踪。<br><br>
+      <b>ScopedModel</b>（<code>scoped_model: ^2.0.0</code>）：部分历史代码遗留，功能类似 Provider，团队逐步迁移中。
+    </div>
+  </div>
+</div>
+
+<!-- Platform Channel -->
+<div class="kcard" style="--kc-color:#ad1457;">
+  <div class="kcard-head">
+    <div class="icon">🔌</div>
+    <div class="meta">
+      <h3>Platform Channel — Flutter 与原生代码通信</h3>
+      <div class="tagline">Flutter 调用相机、蓝牙、厂商 SDK 等原生能力的底层桥接机制</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://docs.flutter.dev/platform-integration/platform-channels" target="_blank">📖 Platform Channel 文档</a>
+      <a class="doc-link" href="https://docs.flutter.dev/packages-and-plugins/developing-packages" target="_blank">🔧 开发 Flutter 插件</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        Flutter 使用 Dart 语言，但手机的硬件能力（相机、蓝牙、传感器）和厂商提供的 SDK（如本项目的 JC 通话 SDK、TradPlus 广告 SDK）是用 Java/Kotlin（Android）或 OC/Swift（iOS）写的。<br><br>
+        Flutter 通过 <b>Platform Channel</b> 机制实现跨语言调用：Dart 层发送消息到一个「命名通道」，原生层监听这个通道并处理，结果异步返回给 Dart。<br><br>
+        日常使用中，开发者通常不需要自己写 Platform Channel——社区和厂商已经将常用功能封装成 <b>Flutter 插件（Plugin）</b>，直接在 pubspec.yaml 中添加依赖即可使用。但当厂商只提供原生 SDK（没有 Flutter 插件）时，就需要自己封装。
+      </div>
+      <div class="why">💡 理解 Platform Channel 有助于解释：为什么 Flutter 插件同时有 <code>lib/</code>（Dart 代码）、<code>android/</code>（Java/Kotlin 代码）、<code>ios/</code>（OC/Swift 代码）三个目录——Dart 层是接口，原生层是实现。</div>
+    </div>
+
+    <div style="background:#fce4ec;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #f48fb1;">
+      <div style="font-size:12px;font-weight:700;color:#ad1457;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🏗️ Flutter 插件的目录结构</div>
+      <div style="font-size:12.5px;color:#2d3748;line-height:2.2;font-family:monospace;">
+        flutter_plugin/<br>
+        &nbsp;&nbsp;├── lib/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← Dart 接口层（调用者看到的 API）<br>
+        &nbsp;&nbsp;├── android/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← Android 原生实现（Java/Kotlin）<br>
+        &nbsp;&nbsp;├── ios/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← iOS 原生实现（OC/Swift）<br>
+        &nbsp;&nbsp;└── pubspec.yaml&nbsp;&nbsp;&nbsp;&nbsp;← 声明这是一个 plugin
+      </div>
+    </div>
+
+    <ul class="kpoints">
+      <li><b>MethodChannel</b>：最常用，Dart 调用原生方法，等待一次性返回值</li>
+      <li><b>EventChannel</b>：原生持续向 Dart 推送事件流（如传感器数据、来电通知）</li>
+      <li><b>BasicMessageChannel</b>：双向持续通信，用于复杂的消息交换场景</li>
+      <li>Pigeon：Google 出品的代码生成工具，自动生成类型安全的 Channel 代码，消除手写通道时的类型错误</li>
+      <li>pub.dev 上有数千个现成插件，优先找现成的，再考虑自己封装</li>
+      <li>插件问题 debug：原生层的报错只在 Logcat（Android）/ Xcode Console（iOS）可见</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 本项目示例</div>
+      本项目大量使用封装了 Platform Channel 的私有插件，全部托管在公司 GitLab：<br><br>
+      <b>jcmanager</b>：封装了 JusTalk 的原生通话 SDK（JCClient），Dart 层调用 <code>jcmanager.call(number)</code>，底层通过 MethodChannel 调用 Android/iOS 各自的通话 SDK 实现发起通话。<br><br>
+      <b>flutter_dtmf</b>：封装原生的 DTMF 拨号音发送，按键时通过 MethodChannel 通知原生层发出音频。<br><br>
+      <b>advertising_info</b>：通过 MethodChannel 获取设备的 Advertising ID（IDFA/GAID），原生层读取系统级 API，Dart 层只拿到一个字符串结果。<br><br>
+      <b>flutter_local_notifications</b>：用 EventChannel 监听来电推送，原生层收到推送后持续向 Dart 层推送来电事件，触发 Flutter UI 展示来电界面。
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PHASE 3  Android 打包基础
+═══════════════════════════════════════════ -->
+<div class="phase" style="--phase-color:#0f9d58;">
+  <div class="phase-num">3</div>
+  <div>
+    <div class="phase-title">Android 打包基础</div>
+    <div class="phase-desc">理解 Android 的构建系统，学会生成可发布的安装包</div>
+  </div>
+  <div class="phase-line"></div>
+</div>
+
+<!-- Gradle -->
+<div class="kcard" style="--kc-color:#02303a;">
+  <div class="kcard-head">
+    <div class="icon">🐘</div>
+    <div class="meta">
+      <h3>Gradle — Android 构建系统</h3>
+      <div class="tagline">描述「怎么编译」「编译成什么」的配置语言</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.android.com/build" target="_blank">📖 Android 构建文档</a>
+      <a class="doc-link" href="https://gradle.org/guides/" target="_blank">🐘 Gradle 官网</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">Gradle 是 Android 的构建工具。<code>build.gradle</code> 文件描述了：应用包名是什么、目标 Android 版本是多少、用哪个签名文件、依赖哪些第三方库等。运行 <code>flutter build</code> 本质上就是在调用 Gradle。</div>
+      <div class="why">💡 为什么要懂它：发布 App、配置多渠道包、添加原生依赖，都离不开修改 build.gradle。</div>
+    </div>
+    <ul class="kpoints">
+      <li><b>APK</b>：普通安装包，可直接安装</li>
+      <li><b>AAB</b>（Android App Bundle）：Google Play 推荐格式，上传后 Play 按设备优化分发</li>
+      <li><code>compileSdk</code>：编译时使用的 Android API 级别</li>
+      <li><code>targetSdk</code>：App 面向的目标 Android 版本</li>
+      <li><code>minSdk</code>：支持的最低 Android 版本</li>
+      <li><code>applicationId</code>：App 的唯一标识，即「包名」</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Product Flavors -->
+<div class="kcard" style="--kc-color:#ff6d00;">
+  <div class="kcard-head">
+    <div class="icon">🏷️</div>
+    <div class="meta">
+      <h3>Product Flavors — 多渠道 / 多品牌构建</h3>
+      <div class="tagline">用一套代码同时构建出多个不同品牌的 App（即「马甲包」）</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.android.com/build/build-variants" target="_blank">📖 Build Variants 文档</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">Product Flavors 是 Android Gradle 的功能。在 <code>build.gradle</code> 中声明多个 flavor，每个 flavor 可以有独立的包名、App 名称、图标、资源文件。构建时选择不同 flavor 就会生成对应品牌的 App。</div>
+      <div class="why">💡 为什么需要：一个团队同时运营多个品牌的同类 App（如 Ding Call、Call 360），共享同一套业务逻辑，只有品牌 UI 和配置不同。通过 Flavor 可以高效复用代码，避免维护多个独立仓库。</div>
+    </div>
+    <div class="example">
+      <div class="ex-title">📌 本项目示例</div>
+      本项目在 <code>android/app/build.gradle</code> 的 <code>productFlavors</code> 中定义了 12 个马甲：juscall、duovoice、dingcall、call360 等。打包时用 <code>--flavor call360</code> 指定要构建哪个马甲。每个马甲在 <code>android/app/src/马甲名/</code> 下存放各自的图标和配置。
+    </div>
+  </div>
+</div>
+
+<!-- App Signing -->
+<div class="kcard" style="--kc-color:#db4437;">
+  <div class="kcard-head">
+    <div class="icon">🔐</div>
+    <div class="meta">
+      <h3>App 签名（Keystore）— Android 身份证</h3>
+      <div class="tagline">证明这个 App 是由你发布的，防止他人篡改</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.android.com/studio/publish/app-signing" target="_blank">📖 签名文档</a>
+      <a class="doc-link" href="https://developer.android.com/studio/command-line/keytool" target="_blank">🔑 keytool 工具</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">Android 规定每个 App 发布前必须用「私钥」签名。这个私钥存储在 <b>keystore 文件</b>（.jks / .keystore）里。签名后的 App 会附带公钥指纹（SHA-1 / SHA-256），系统和第三方服务用它来验证来源。<br><br>keystore 一旦丢失，<b>该 App 就永远无法更新</b>（Play 会拒绝不同签名的升级包），因此必须妥善保管。</div>
+      <div class="why">💡 关键规则：signingConfigs 中的 storeFile 指向哪个 keystore 文件，必须通过 <code>key.properties</code> 确认，不能靠名字猜测。</div>
+    </div>
+    <ul class="kpoints">
+      <li><b>debug keystore</b>：本地开发调试用，系统自动生成</li>
+      <li><b>release keystore</b>：正式发布用，需自己生成并保管</li>
+      <li><b>SHA-1</b>：证书指纹，需注册到 Firebase、Google 登录等服务</li>
+      <li><b>Play App Signing</b>：将签名密钥托管给 Google，更安全</li>
+      <li>查看签名：<code>keytool -printcert -jarfile app.aab</code></li>
+      <li>本项目有两个 keystore：justalk.keystore 和 juscall.keystore</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 本项目示例</div>
+      <code>key.properties</code> 中：<code>storeFile=../justalk.keystore</code>（对应 release）、<code>jcStoreFile=../juscall.keystore</code>（对应 jcRelease）。为 call360 配签名时，先查 google-services.json 里的 SHA1，与两个 keystore 的 SHA1 比对，才能确定用哪个 signingConfig。
+    </div>
+  </div>
+</div>
+
+
+<!-- Source Sets -->
+<div class="kcard" style="--kc-color:#2e7d32;">
+  <div class="kcard-head">
+    <div class="icon">📁</div>
+    <div class="meta">
+      <h3>Source Sets — Flavor 如何找到自己的资源文件</h3>
+      <div class="tagline">Gradle 按固定目录规则自动合并资源，flavor 目录的同名文件会覆盖 main 目录</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.android.com/build/build-variants#sourcesets" target="_blank">📖 Source Sets 文档</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        Android 规定了固定的目录查找规则：<code>android/app/src/</code> 下有两类目录——<b>main</b>（所有 flavor 共享的基础资源）和 <b>flavor 名</b>（该 flavor 专属资源）。<br><br>
+        构建某个 flavor 时，Gradle 先加载 <code>src/main/</code> 的全部资源，再加载 <code>src/flavor名/</code> 的资源，<b>同名文件直接覆盖</b>，不同名文件正常合并。因此每个马甲只需要放「与 main 不同的文件」，无需重复放所有资源。
+      </div>
+      <div class="why">💡 优先级：<code>src/flavor名/</code> &gt; <code>src/main/</code>。这个规则由 Gradle 自动处理，不需要写任何代码。</div>
+    </div>
+    <ul class="kpoints">
+      <li>图标（mipmap）：放 flavor 目录 → 覆盖 main 的默认图标</li>
+      <li>google-services.json：放 flavor 目录根部 → 自动关联对应 Firebase 项目</li>
+      <li>strings.xml / colors.xml：放 flavor 目录 → 覆盖 main 的默认值</li>
+      <li>layout、其他未覆盖资源：继续使用 main 目录的文件</li>
+      <li>flavor 目录只需放「差异文件」，大幅减少重复</li>
+      <li>多个 flavor 各自独立，互不影响</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 本项目示例（call360）</div>
+      <code>src/main/res/drawable-hdpi/ic_logo_288.png</code>（默认图标）被<br>
+      <code>src/call360/res/drawable-hdpi/ic_logo_288.png</code>（call360 专属图标）自动覆盖。<br>
+      <code>google-services.json</code> 放在 <code>src/call360/</code> 根目录，构建 call360 时自动连接 call360 的 Firebase 项目；构建 dingcall 时则使用 <code>src/dingcall/google-services.json</code>，完全隔离。
+    </div>
+  </div>
+</div>
+
+<!-- Version Management -->
+<div class="kcard" style="--kc-color:#00897b;">
+  <div class="kcard-head">
+    <div class="icon">🔢</div>
+    <div class="meta">
+      <h3>版本号管理策略 — versionCode &amp; versionName</h3>
+      <div class="tagline">两个版本号含义完全不同：一个给机器判断新旧，一个给用户看</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.android.com/studio/publish/versioning" target="_blank">📖 Android 版本文档</a>
+      <a class="doc-link" href="https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration" target="_blank">🎯 Flutter 版本配置</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        Android 每个 App 有两个独立的版本号：<br><br>
+        <b>versionCode（整数）</b>：给 Google Play 和系统看的，判断「哪个包更新」。每次发布必须严格递增，否则 Play 会拒绝上传。用户看不到这个数字。<br><br>
+        <b>versionName（字符串）</b>：给用户看的显示版本号，如 <code>1.2.3</code>。格式自由，Play 不限制，可以不递增——但不递增会让用户困惑，所以实践中也应该保持递增。
+      </div>
+      <div class="why">💡 最常见的新手错误：更新了 versionName 但忘记递增 versionCode，导致 Play 拒绝上传，报错「Version code X has already been used」。</div>
+    </div>
+
+    <div style="background:#f0faf8;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #b2dfdb;">
+      <div style="font-size:12px;font-weight:700;color:#00897b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">📐 Flutter 项目的版本号写法</div>
+      <div style="font-size:12.5px;color:#2d3748;line-height:2;">
+        Flutter 在 <code>pubspec.yaml</code> 中用一行统一管理：<br>
+        <code style="background:#e0f2f1;padding:2px 8px;border-radius:4px;">version: 6.5.20+665200520</code><br><br>
+        <b><code>6.5.20</code></b> → versionName（用户可见）<br>
+        <b><code>665200520</code></b> → versionCode（Play 用来判断新旧）<br><br>
+        <code>+</code> 号前是 versionName，后是 versionCode。也可以在打包命令中覆盖：<br>
+        <code style="background:#e0f2f1;padding:2px 8px;border-radius:4px;">flutter build appbundle --build-name=6.5.21 --build-number=665200521</code>
+      </div>
+    </div>
+
+    <div style="background:#f0faf8;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #b2dfdb;">
+      <div style="font-size:12px;font-weight:700;color:#00897b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🏷️ 多 Flavor 下的版本号策略</div>
+      <div style="font-size:12.5px;color:#2d3748;line-height:2;">
+        多马甲场景下，两个维度可以独立管理：<br><br>
+        <b>versionCode 全局共享</b>：所有 flavor 用同一个 versionCode（来自 pubspec.yaml），每次统一递增。好处是维护简单，不容易漏更新某个马甲。<br><br>
+        <b>versionName 各 flavor 独立</b>：在 <code>build.gradle</code> 的 productFlavors 中为每个 flavor 单独指定 versionName，反映各马甲自己的迭代节奏。这样 juscall 可以是 6.x，新马甲 call360 可以从 1.0.0 开始，互不影响。
+      </div>
+    </div>
+
+    <ul class="kpoints">
+      <li>versionCode 必须是正整数，且每次发布严格递增</li>
+      <li>同一个 App（相同 applicationId）的 versionCode 不能重复上传</li>
+      <li>不同 flavor（不同 applicationId）的 versionCode 互相独立，可以相同</li>
+      <li>iOS 对应字段：CFBundleShortVersionString（versionName）和 CFBundleVersion（versionCode）</li>
+      <li>Play 的「内部测试」轨道允许重复上传相同 versionCode，方便调试</li>
+      <li>versionCode 编码技巧：把版本信息编入数字，方便排查（见下方本项目示例）</li>
+    </ul>
+
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 本项目示例</div>
+      <b>pubspec.yaml</b>：<code>version: 6.5.20+665200520</code><br>
+      versionCode <code>665200520</code> 的含义可拆解为：<code>6-65-20-0520</code>，将主版本、次版本、修订号、日期编入数字中，一眼能看出这个包是什么版本打的。<br><br>
+      <b>各 flavor 的 versionName（build.gradle 中独立配置）：</b><br>
+      &nbsp;&nbsp;• <code>juscall</code>：未单独设置，继承 pubspec.yaml 的 <code>6.5.20</code><br>
+      &nbsp;&nbsp;• <code>duovoice</code> / <code>truetalk</code>：<code>4.5.20</code>（成熟马甲，版本较高）<br>
+      &nbsp;&nbsp;• <code>duocall</code> / <code>anycall</code>：<code>2.5.20</code>（中期马甲）<br>
+      &nbsp;&nbsp;• <code>call360</code>：<code>1.0.0</code>（新马甲，从 1.0 起步）<br><br>
+      所有马甲共用同一个 versionCode（<code>665200520</code>），每次打包统一在 pubspec.yaml 中递增，避免漏更新某个马甲。
+    </div>
+  </div>
+</div>
+
+
+<!-- ProGuard / R8 -->
+<div class="kcard" style="--kc-color:#37474f;">
+  <div class="kcard-head">
+    <div class="icon">🛡️</div>
+    <div class="meta">
+      <h3>代码混淆 — ProGuard / R8</h3>
+      <div class="tagline">Release 包自动开启；混淆规则写错会导致 App 启动崩溃</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.android.com/build/shrink-code" target="_blank">📖 缩减代码文档</a>
+      <a class="doc-link" href="https://www.guardsquare.com/manual/configuration/rules" target="_blank">📋 ProGuard 规则</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        Android Release 包在 <code>build.gradle</code> 中开启 <code>minifyEnabled true</code> 后，构建工具（R8，ProGuard 的继任者）会做三件事：<br><br>
+        <b>① 压缩（Shrink）</b>：删除未被调用的类、方法、字段，减小包体积。<br>
+        <b>② 混淆（Obfuscate）</b>：将类名、方法名替换成无意义的短名称（如 <code>a.b.c</code>），增加反编译难度，保护商业逻辑。<br>
+        <b>③ 优化（Optimize）</b>：内联方法、简化代码，提升运行效率。<br><br>
+        <b>常见问题</b>：混淆会把第三方 SDK 需要的类名也改掉，导致 SDK 通过反射找不到类而崩溃。解决方法是在 <code>proguard-rules.pro</code> 中添加 <code>-keep</code> 规则，告诉 R8 哪些类不能被混淆。
+      </div>
+      <div class="why">💡 最高频的坑：Debug 包正常，Release 包崩溃——90% 是 proguard 规则缺失导致的。每接入一个新 SDK，必须检查它是否提供了对应的 proguard 规则。</div>
+    </div>
+    <ul class="kpoints">
+      <li><code>minifyEnabled true</code>：开启 R8 压缩 + 混淆 + 优化</li>
+      <li><code>shrinkResources true</code>：同时删除未引用的资源文件（图片、layout 等）</li>
+      <li><code>-keep class com.example.** { *; }</code>：保留指定包下所有类不被混淆</li>
+      <li><code>-keepattributes *Annotation*</code>：保留注解信息（Retrofit 等依赖注解的库必须加）</li>
+      <li>多数 SDK 在文档或 AAR 内自带 <code>consumer-rules.pro</code>，会自动合并，不用手动添加</li>
+      <li>崩溃堆栈是混淆后的短名称，需用 <code>retrace</code> 工具还原（Crashlytics 自动还原）</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 本项目示例</div>
+      本项目 <code>build.gradle</code> 中 release 构建配置：<br>
+      <code>minifyEnabled true</code> / <code>shrinkResources true</code> / <code>proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'</code><br><br>
+      <code>proguard-rules.pro</code> 中需要为 JC 通话 SDK、TradPlus、AppLovin、Firebase、Realm 等各自添加 keep 规则。各 SDK 官方文档的「混淆」章节会提供对应规则，接入新 SDK 后应第一时间检查并补充。<br><br>
+      验证方式：每次新接入 SDK 后，必须打一次 Release 包在真机上完整走一遍功能，不能只依赖 Debug 包测试。
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PHASE 4  iOS 打包基础
+═══════════════════════════════════════════ -->
+<div class="phase" style="--phase-color:#555;">
+  <div class="phase-num">4</div>
+  <div>
+    <div class="phase-title">iOS 打包基础</div>
+    <div class="phase-desc">iOS 有一套独立于 Android 的签名与发布体系，必须单独了解</div>
+  </div>
+  <div class="phase-line"></div>
+</div>
+
+<!-- Apple Developer Program -->
+<div class="kcard" style="--kc-color:#555;">
+  <div class="kcard-head">
+    <div class="icon">🍎</div>
+    <div class="meta">
+      <h3>Apple Developer Program — iOS 开发者资质</h3>
+      <div class="tagline">上架 App Store 的前提：付费加入苹果开发者计划（$99/年）</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.apple.com/programs/" target="_blank">📖 开发者计划</a>
+      <a class="doc-link" href="https://developer.apple.com/account/" target="_blank">🌐 开发者后台</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">要将 App 上架 App Store，必须加入 <b>Apple Developer Program</b>，年费 $99（个人或公司账号）。加入后可以：在真机上安装调试 App、生成发布证书、上传到 App Store Connect。<br><br>
+      与 Google Play（一次性 $25）不同，苹果开发者账号是<b>年费制</b>，到期不续费则 App 会从商店下架。</div>
+      <div class="why">💡 企业账号（$299/年）可以在内部分发 App，不经过 App Store 审核，适合企业内部工具。</div>
+    </div>
+    <ul class="kpoints">
+      <li>个人账号：App 归属于个人名下，适合独立开发者</li>
+      <li>公司账号：需要 D-U-N-S 编号，App 归属公司，可多人协作</li>
+      <li>每年需续费，否则证书过期、App 下架</li>
+      <li>国内主体注册苹果开发者账号需要提供营业执照</li>
+      <li>一个账号最多上架多个 App，按 Bundle ID 区分</li>
+      <li>对标 Google Play Console（一次性 $25）</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Certificates & Provisioning Profiles -->
+<div class="kcard" style="--kc-color:#e53935;">
+  <div class="kcard-head">
+    <div class="icon">📜</div>
+    <div class="meta">
+      <h3>证书（Certificate）&amp; 描述文件（Provisioning Profile）</h3>
+      <div class="tagline">iOS 签名体系：比 Android Keystore 更复杂，分「证书」和「描述文件」两层</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.apple.com/documentation/xcode/code-signing-guide-for-teams" target="_blank">📖 代码签名文档</a>
+      <a class="doc-link" href="https://developer.apple.com/account/resources/certificates/list" target="_blank">🔑 证书管理</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">iOS 签名分两层：<br><br>
+      <b>① Certificate（证书）</b>：证明「你是谁」。分开发证书（Development）和发布证书（Distribution）。证书绑定到开发者账号，用私钥签名。<br><br>
+      <b>② Provisioning Profile（描述文件）</b>：证明「这个 App 被允许安装在哪些设备上」。它把 Certificate + Bundle ID + 设备 UDID 三者绑定在一起。<br><br>
+      构建 iOS 包时，Xcode 同时用这两个文件对 App 签名。
+      </div>
+      <div class="why">💡 Android 只有 Keystore 一层，iOS 有两层，这是新手最容易混淆的地方。</div>
+    </div>
+    <ul class="kpoints">
+      <li><b>Development Profile</b>：开发/调试用，只能装到授权设备</li>
+      <li><b>Distribution Profile</b>：发布用，App Store 或企业分发</li>
+      <li><b>Bundle ID</b>：iOS 的「包名」，全局唯一，如 <code>com.example.myapp</code></li>
+      <li>证书有效期 1 年，到期需重新生成并更新描述文件</li>
+      <li>描述文件包含允许安装的设备 UDID 列表（开发版）</li>
+      <li>Xcode 可自动管理签名（Automatically manage signing）</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">Android vs iOS 签名对比</div>
+      Android：<code>justalk.keystore</code>（一个文件搞定，自己保管）<br>
+      iOS：<code>Distribution Certificate</code>（证明身份）+ <code>App Store Provisioning Profile</code>（证明权限）需配合使用，且每年过期。
+    </div>
+    <div class="example" style="margin-top:10px;">
+      <div class="ex-title">📌 本项目示例</div>
+      本项目 iOS 端使用<b>手动签名（Manual Signing）</b>，在 <code>project.pbxproj</code> 中明确指定每个 target 使用哪个 Profile：<br><br>
+      <b>JusCall</b>（Bundle ID：<code>global.juscall.ios</code>）<br>
+      &nbsp;&nbsp;• 测试发布：<code>JusCall Ad Hoc</code> — 安装到指定注册设备（如领导手机）<br>
+      &nbsp;&nbsp;• 正式上架：<code>JusCall App Store</code> — 提交 App Store 审核<br><br>
+      <b>DuoVoice</b>（Bundle ID：<code>com.duoface.duovoice.ios</code>）<br>
+      &nbsp;&nbsp;• 测试发布：<code>DuoVoice Ad Hoc</code><br>
+      &nbsp;&nbsp;• 正式上架：<code>DuoVoice App Store</code><br><br>
+      开发者账号 Team ID 统一为 <code>N5MHT4S3Z7</code>，证书绑定在该账号下。签名方式设置为：<br>
+      &nbsp;&nbsp;• 模拟器/Debug：<code>Apple Development</code>（开发证书，不限制设备）<br>
+      &nbsp;&nbsp;• 真机/Release：<code>iPhone Distribution</code>（发布证书，配合 Provisioning Profile 使用）<br><br>
+      <b>注意：</b>iOS 端目前只有 JusCall 和 DuoVoice 两个马甲，Android 端的其他马甲（call360、dingcall 等）若要上 iOS，每个都需要单独在 Apple 开发者后台注册 Bundle ID、生成对应的 Provisioning Profile。<br><br>
+      此外，<code>Runner.entitlements</code> 文件声明了该 App 使用的系统权限能力，本项目开启了两项：<br>
+      &nbsp;&nbsp;• <code>aps-environment</code>：推送通知（APNs）<br>
+      &nbsp;&nbsp;• <code>com.apple.developer.applesignin</code>：Sign in with Apple
+    </div>
+  </div>
+</div>
+
+<!-- App Store Connect -->
+<div class="kcard" style="--kc-color:#1a73e8;">
+  <div class="kcard-head">
+    <div class="icon">🏪</div>
+    <div class="meta">
+      <h3>App Store Connect — iOS 应用发布后台</h3>
+      <div class="tagline">上传 IPA、管理版本、配置商店页、管理内购，对标 Google Play Console</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.apple.com/app-store-connect/" target="_blank">📖 ASC 文档</a>
+      <a class="doc-link" href="https://appstoreconnect.apple.com" target="_blank">🌐 控制台</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">App Store Connect（简称 ASC）是苹果的应用发布管理平台，功能上类似 Google Play Console：在这里创建 App 条目、上传构建版本（通过 Xcode 或 Transporter）、配置商店展示页（名称、截图、关键词）、设置内购商品、提交审核、查看下载数据。</div>
+      <div class="why">💡 主要差异：苹果审核比 Google 严格，通常需要 1–3 天，拒绝率也高，必须认真阅读 App Store 审核指南。</div>
+    </div>
+    <ul class="kpoints">
+      <li><b>TestFlight</b>：苹果官方内测工具，最多 10000 名外部测试员</li>
+      <li><b>Bundle ID</b>：在 ASC 创建 App 时注册，之后无法修改</li>
+      <li><b>构建版本</b>：每次上传需要递增 Build Number（类似 versionCode）</li>
+      <li>内购商品在 ASC 后台配置，与 Google Play Console 类似</li>
+      <li>审核通过后可选择「自动发布」或「手动发布」</li>
+      <li>元数据（截图、文案）修改无需重新审核，可随时更新</li>
+    </ul>
+  </div>
+</div>
+
+<!-- TestFlight -->
+<div class="kcard" style="--kc-color:#5c6bc0;">
+  <div class="kcard-head">
+    <div class="icon">✈️</div>
+    <div class="meta">
+      <h3>TestFlight — iOS 内测分发工具</h3>
+      <div class="tagline">正式上线前的内部测试和外部 Beta 测试，苹果官方提供</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.apple.com/testflight/" target="_blank">📖 TestFlight 文档</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">TestFlight 是苹果官方的 Beta 测试平台，集成在 App Store Connect 中。将构建版本上传后，可以邀请内部测试员（25 人以内，无需审核）或外部测试员（最多 10,000 人，需简单审核）通过 TestFlight App 安装测试版。<br><br>
+      对比 Android：Android 用 Play Console 的「内部测试 → 封闭测试 → 开放测试」轨道，iOS 则统一用 TestFlight。</div>
+      <div class="why">💡 与 Google Play 内测的最大区别：TestFlight 的构建版本有 90 天有效期，过期用户会被强制更新。</div>
+    </div>
+    <ul class="kpoints">
+      <li>内部测试：最多 25 人，上传后立即可用，无需苹果审核</li>
+      <li>外部测试：最多 10,000 人，首次提交需苹果 Beta 审核（1–2天）</li>
+      <li>用邮件邀请或公开链接分发测试资格</li>
+      <li>每个构建版本有效期 90 天，到期自动失效</li>
+      <li>测试员可提交崩溃报告和截图反馈</li>
+      <li>对标 Android 的 Play Console 内部测试轨道</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Apple Sign-In -->
+<div class="kcard" style="--kc-color:#1c1c1e;">
+  <div class="kcard-head">
+    <div class="icon">🔒</div>
+    <div class="meta">
+      <h3>Sign in with Apple — iOS 强制要求的登录方式</h3>
+      <div class="tagline">App 提供第三方登录（如 Google 登录）时，苹果强制要求同时支持 Apple 登录</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.apple.com/sign-in-with-apple/" target="_blank">📖 Apple 登录文档</a>
+      <a class="doc-link" href="https://pub.dev/packages/the_apple_sign_in" target="_blank">🎯 Flutter 插件</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">Apple 规定：<b>如果 App 使用了任何第三方账号登录（Google、Facebook、微信等），则必须同时提供「Sign in with Apple」选项</b>，否则审核会被拒绝。<br><br>
+      Apple 登录的特点：用户可以选择隐藏真实邮箱（Apple 会生成一个中继邮箱转发邮件），对用户隐私保护更强。</div>
+      <div class="why">💡 这条规定是很多 Android 优先的团队在移植到 iOS 时被审核打回的常见原因之一。</div>
+    </div>
+    <ul class="kpoints">
+      <li>App 有第三方登录 → 必须有 Apple 登录，无例外</li>
+      <li>需要在 Apple Developer 后台开启 Sign in with Apple 能力（Capability）</li>
+      <li>Flutter 可用 <code>the_apple_sign_in</code> 插件接入</li>
+      <li>用户可选择隐藏邮箱，后端需能处理中继邮箱</li>
+      <li>Token 验证需在服务端调用 Apple 的 API，不能只做客户端验证</li>
+      <li>Android 不受此规定约束，可只有 Google 登录</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 本项目示例</div>
+      本项目 pubspec.yaml 中已引入 <code>the_apple_sign_in: ^1.1.1</code>，App 登录页同时展示 Google 登录（Android/iOS）和 Apple 登录（仅 iOS），满足苹果审核要求。
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PHASE 5  后端与云服务
+═══════════════════════════════════════════ -->
+<div class="phase" style="--phase-color:#f4a400;">
+  <div class="phase-num">5</div>
+  <div>
+    <div class="phase-title">后端与云服务</div>
+    <div class="phase-desc">用户登录、远程配置、崩溃监控等后端能力</div>
+  </div>
+  <div class="phase-line"></div>
+</div>
+
+<!-- Firebase -->
+<div class="kcard" style="--kc-color:#f4a400;">
+  <div class="kcard-head">
+    <div class="icon">🔥</div>
+    <div class="meta">
+      <h3>Firebase — Google 的移动端后端平台（BaaS）</h3>
+      <div class="tagline">提供登录、数据库、推送、崩溃监控等一站式后端能力，无需自建服务器</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://firebase.google.com/docs" target="_blank">📖 Firebase 文档</a>
+      <a class="doc-link" href="https://console.firebase.google.com" target="_blank">🌐 控制台</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">Firebase 是 Google 提供的后端即服务（BaaS）平台。开发者不需要自己搭服务器，就可以直接使用登录认证、实时数据库、云函数、文件存储等功能。接入方式是将 <code>google-services.json</code>（Android）放入项目，SDK 自动连接到对应 Firebase 项目。</div>
+      <div class="why">💡 为什么需要：快速获得用户认证、远程配置下发、崩溃日志收集等能力，且每个马甲建一个独立项目，数据完全隔离。</div>
+    </div>
+    <ul class="kpoints">
+      <li><b>Authentication</b>：用户登录（手机号、Google、Apple）</li>
+      <li><b>Remote Config</b>：远程下发配置（如服务器地址），无需发版</li>
+      <li><b>Dynamic Links</b>：智能跳转链接（区分已装/未装 App）</li>
+      <li><b>Crashlytics</b>：崩溃收集与分析</li>
+      <li><b>google-services.json</b>：App 的身份证，含项目 ID、API Key、合法 SHA1 白名单</li>
+      <li>SHA-1 必须添加到 Firebase，Google 登录才能正常工作</li>
+    </ul>
+
+    <!-- google-services.json 详解 -->
+    <div style="background:#f0f7ff;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #c8dff8;">
+      <div style="font-size:12px;font-weight:700;color:#1a73e8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🗝️ google-services.json 是什么 &amp; 为什么要更新两次</div>
+      <div style="font-size:13px;color:#2d3748;line-height:1.9;">
+        <b>它是什么：</b>Firebase 给 App 的"身份证 + 通行令牌"。App 启动时 Firebase SDK 读取它，知道「连哪个 Firebase 项目」以及「哪些签名的 App 被允许使用 Google 登录」。文件里的 <code>certificate_hash</code> 字段就是已注册的 SHA1 白名单。<br><br>
+        <b>为什么要更新两次：</b>整个流程中会产生 <b>3 个 SHA1</b>，需要分两次加入：<br><br>
+        <div style="background:#fff;border-radius:8px;padding:12px 14px;font-size:12px;line-height:2;border:1px solid #e2e8f0;">
+          <b>第一次下载</b>（上传 Play 之前）<br>
+          &nbsp;&nbsp;✅ debug keystore SHA1 &nbsp;← 让开发者本地调试时 Google 登录可用<br>
+          &nbsp;&nbsp;✅ release keystore SHA1 &nbsp;← 让 release 包可以使用 Google 登录<br><br>
+          <b>用 release 包上传到 Google Play</b><br>
+          &nbsp;&nbsp;→ Play 生成自己的「Play App Signing」密钥（第 3 个 SHA1）<br><br>
+          <b>第二次下载</b>（获取 Play SHA1 后）<br>
+          &nbsp;&nbsp;✅ debug keystore SHA1 &nbsp;← 不变<br>
+          &nbsp;&nbsp;✅ release keystore SHA1 &nbsp;← 不变<br>
+          &nbsp;&nbsp;✅ <b>Play App Signing SHA1</b> &nbsp;← 新增！用户从商店下载的正式版靠它登录<br>
+        </div>
+        <br>
+        <b>为什么 Play 会有自己的签名：</b>开启「Play App Signing」后，Google 会将你上传的 AAB 用 Play 自己的密钥重新签名再分发给用户，这样即使你的 release keystore 丢失，也不影响 App 更新。但这也意味着用户设备上安装的 App 签名是 Play 的密钥，而不是你的 keystore——所以 Firebase 必须也注册这个 SHA1，Google 登录才能通过验证。
+      </div>
+    </div>
+
+    <div class="example">
+      <div class="ex-title">📌 本项目示例</div>
+      每个马甲对应独立 Firebase 项目：call360 → Firebase 项目 <code>call360-4a9be</code>。
+      <code>google-services.json</code> 放在 <code>android/app/src/call360/</code> 目录下，Gradle 构建时自动选用对应马甲的配置文件。
+      查看 call360 的 google-services.json，可以看到 <code>oauth_client</code> 数组里有 2 条 <code>certificate_hash</code> 记录，分别对应 debug 和 release/Play 的 SHA1。
+      Remote Config 按国家（Egypt / Qatar / India）配置不同的 <code>routerUrl</code>，App 启动时动态拉取。
+    </div>
+  </div>
+</div>
+
+
+<!-- Push Notifications -->
+<div class="kcard" style="--kc-color:#e91e63;">
+  <div class="kcard-head">
+    <div class="icon">🔔</div>
+    <div class="meta">
+      <h3>推送通知 — FCM（Android）&amp; APNs（iOS）</h3>
+      <div class="tagline">App 不在前台时也能主动触达用户；Android 和 iOS 底层机制完全不同</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://firebase.google.com/docs/cloud-messaging" target="_blank">📖 FCM 文档</a>
+      <a class="doc-link" href="https://developer.apple.com/documentation/usernotifications" target="_blank">🍎 APNs 文档</a>
+      <a class="doc-link" href="https://pub.dev/packages/firebase_messaging" target="_blank">🎯 Flutter 插件</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        推送通知让服务器在任意时刻向用户设备发送消息，即使 App 已被关闭。两个平台的底层通道完全不同：<br><br>
+        <b>Android — FCM（Firebase Cloud Messaging）</b><br>
+        消息由你的服务器发给 FCM，FCM 再转发到用户设备。App 需要在 Firebase 项目中开启 Cloud Messaging，设备启动时会向 FCM 注册并获得一个唯一的 <b>Device Token</b>，服务端靠这个 Token 定向推送。<br><br>
+        <b>iOS — APNs（Apple Push Notification service）</b><br>
+        消息必须先经过苹果的 APNs 服务器中转，再到达用户设备。你的服务器要用苹果颁发的 <b>APNs 证书</b>（或 APNs Key）向 APNs 发请求。FCM 也可以作为 iOS 推送的中间层（服务端只对接 FCM，FCM 内部再转发给 APNs），简化服务端实现。
+      </div>
+      <div class="why">💡 核心区别：Android 推送走 Google 通道，在国内受限（需要厂商通道替代）；iOS 推送必须经过 APNs，苹果强管控，但国内外都能用。</div>
+    </div>
+    <ul class="kpoints">
+      <li><b>Device Token</b>：设备在推送服务注册后获得的唯一 ID，服务端存储后用于定向推送</li>
+      <li><b>Topic / 广播</b>：订阅某个主题，服务端向主题推送可触达所有订阅设备</li>
+      <li><b>前台通知</b>：App 在前台时默认不显示通知栏，需额外处理</li>
+      <li><b>后台通知</b>：App 被杀死时仍可收到，需申请后台权限</li>
+      <li><b>通知权限</b>：iOS 必须弹窗请求用户授权；Android 13+ 同样需要请求权限</li>
+      <li>国内 Android 推送需接入厂商通道（小米、华为、OPPO 等）绕过 GMS 限制</li>
+    </ul>
+
+    <!-- 流程图：从服务端到用户设备 -->
+    <div style="background:#fff5f9;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #f8bbd0;">
+      <div style="font-size:12px;font-weight:700;color:#e91e63;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">📡 推送链路对比</div>
+      <div style="font-size:12.5px;color:#2d3748;line-height:2.2;">
+        <b>Android</b>：你的服务器 → FCM 服务器 → 用户 Android 设备<br>
+        <b>iOS（直接）</b>：你的服务器（带 APNs 证书）→ APNs 服务器 → 用户 iPhone<br>
+        <b>iOS（经由 FCM）</b>：你的服务器 → FCM 服务器 → APNs 服务器 → 用户 iPhone<br>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f8bbd0;font-size:12px;color:#718096;">
+          使用 FCM 统一管理 Android + iOS 推送是最常见的做法，服务端只需对接一个 API。
+        </div>
+      </div>
+    </div>
+
+    <!-- APNs 证书说明 -->
+    <div style="background:#f8faff;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #e8eef8;">
+      <div style="font-size:12px;font-weight:700;color:#1a73e8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🔑 iOS 推送的额外配置</div>
+      <div style="font-size:12.5px;color:#2d3748;line-height:1.9;">
+        iOS 推送必须在 Apple Developer 后台开启 <b>Push Notifications Capability</b>（推送能力），并上传一个：<br>
+        &nbsp;&nbsp;• <b>APNs 证书（.p12）</b>：有效期 1 年，到期需续期<br>
+        &nbsp;&nbsp;• 或 <b>APNs Key（.p8）</b>：不过期，推荐使用<br><br>
+        这个证书/Key 需要发给后端，后端用它与 APNs 服务器建立信任连接。如果用 FCM 统一管理，则将 APNs Key 上传到 Firebase 控制台即可，后端只需对接 FCM API。
+      </div>
+    </div>
+
+    <div class="example">
+      <div class="ex-title">📌 本项目示例</div>
+      本项目在 iOS 的 <code>Runner.entitlements</code> 中声明了 <code>aps-environment: development</code>，表示当前配置的是开发环境推送通道。正式发布时需将其改为 <code>production</code>，并在 Provisioning Profile 中启用 Push Notifications 能力。<br><br>
+      Android 端通过 <code>firebase_messaging</code> Flutter 插件接入 FCM，App 首次启动时获取 Device Token 并上报给业务服务器，服务器在需要时通过 FCM API 发送通话提醒、消息通知等推送。
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PHASE 6  应用商店发布
+═══════════════════════════════════════════ -->
+<div class="phase" style="--phase-color:#db4437;">
+  <div class="phase-num">6</div>
+  <div>
+    <div class="phase-title">应用商店发布</div>
+    <div class="phase-desc">将 App 上架到 Google Play，让用户能搜索和下载</div>
+  </div>
+  <div class="phase-line"></div>
+</div>
+
+<!-- Google Play Console -->
+<div class="kcard" style="--kc-color:#db4437;">
+  <div class="kcard-head">
+    <div class="icon">🛒</div>
+    <div class="meta">
+      <h3>Google Play Console — Android 应用发布平台</h3>
+      <div class="tagline">上传 AAB、管理版本、查看数据、配置内购的后台</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://play.google.com/console/about/" target="_blank">📖 Play Console 文档</a>
+      <a class="doc-link" href="https://developer.android.com/distribute/best-practices/launch/launch-checklist" target="_blank">✅ 发布清单</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">Google Play Console 是 Android 开发者的应用管理后台。在这里创建 App 条目、上传 AAB 包、配置商店页面（截图、描述）、管理版本发布、查看崩溃和评价、配置内购商品。</div>
+      <div class="why">💡 注意：App 上传到 Play 后，Google 会生成自己的「Play App Signing」密钥，这个 SHA-1 和你本地 keystore 的 SHA-1 不同，也需要注册到 Firebase，否则 Google 登录会失败。</div>
+    </div>
+    <ul class="kpoints">
+      <li><b>内部测试 → 封闭测试 → 开放测试 → 正式发布</b>：逐步扩大用户范围</li>
+      <li><b>App Signing</b>：Play 管理签名，下载时自动用 Play 密钥重签</li>
+      <li><b>服务账号</b>：用于服务端验证内购收据，防止作弊</li>
+      <li><b>publicKey</b>：RSA 公钥，App 端验证内购签名用</li>
+      <li>首次上传后才能在 App Signing 页看到 Play 的 SHA-1</li>
+      <li>服务账号需授权「财务数据」权限才能验证订单</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 本项目示例</div>
+      call360 首次打 AAB 上传 Play 后，在「设置 → App Signing」页面获取 Play 签名的 SHA-1，将其添加到 Firebase 项目，然后重新下载 <code>google-services.json</code> 替换项目中的文件，再次打包发布。
+    </div>
+  </div>
+</div>
+
+<!-- In-App Purchase -->
+<div class="kcard" style="--kc-color:#7c4dff;">
+  <div class="kcard-head">
+    <div class="icon">💳</div>
+    <div class="meta">
+      <h3>应用内购（In-App Purchase）— 变现核心</h3>
+      <div class="tagline">订阅会员、购买虚拟货币等付费功能</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.android.com/google/play/billing/integrate" target="_blank">📖 Play Billing 文档</a>
+      <a class="doc-link" href="https://developer.android.com/google/play/billing/subscriptions" target="_blank">📋 订阅文档</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">内购分两种：<b>订阅（Subscription）</b>按月/周自动续费，如会员；<b>消耗品（Consumable）</b>一次性购买，如虚拟货币。每个商品在 Play Console 后台创建，有唯一的 <b>SKU ID</b>，App 用这个 ID 调起支付。</div>
+      <div class="why">💡 服务端必须用 Google 签名的「服务账号」验证每笔订单的真实性，防止用户伪造收据。<code>publicKey</code>（RSA 公钥）用于客户端本地预验证。</div>
+    </div>
+    <div class="example">
+      <div class="ex-title">📌 本项目示例</div>
+      call360 的内购商品 ID 格式为 <code>call360.month.499.and</code>（月订阅）、<code>call360.credits.99.and</code>（消耗品），在 <code>product_string.dart</code> 的 <code>Call360LocalStrings</code> 中配置，运营在 Play 后台创建对应商品后填入。
+    </div>
+  </div>
+</div>
+
+
+<!-- 隐私政策 -->
+<div class="kcard" style="--kc-color:#37474f;">
+  <div class="kcard-head">
+    <div class="icon">🛡️</div>
+    <div class="meta">
+      <h3>隐私政策 &amp; 用户协议 — 上架硬性要求</h3>
+      <div class="tagline">Google Play 和 App Store 都强制要求提供隐私政策链接，缺少会被拒绝上架</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://support.google.com/googleplay/android-developer/answer/9859455" target="_blank">📖 Play 隐私要求</a>
+      <a class="doc-link" href="https://developer.apple.com/app-store/review/guidelines/#privacy" target="_blank">🍎 Apple 隐私指南</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        无论 App 大小，只要收集了任何用户数据（账号、手机号、设备 ID、位置等），就必须提供一个公开可访问的<b>隐私政策页面</b>，并在 Play Console / App Store Connect 的商店配置中填入链接。<br><br>
+        隐私政策需要说明：收集了哪些数据、为什么收集、是否分享给第三方、用户如何删除账号/数据。<b>用户协议（Terms of Service）</b>不是强制要求，但涉及付费功能时强烈建议同时提供。
+      </div>
+      <div class="why">💡 没有隐私政策链接 = 直接被拒审核，这是最容易被忽视的硬性要求之一。</div>
+    </div>
+    <ul class="kpoints">
+      <li>隐私政策必须托管在可公开访问的 URL，不能是 PDF 附件</li>
+      <li>内容必须与 App 实际收集的数据一致，不能照抄模板而不修改</li>
+      <li>Play Console 要求在商店详情页和 App 内都能访问隐私政策</li>
+      <li>用户必须在注册前能看到隐私政策（不能注册后才显示）</li>
+      <li>涉及儿童用户须额外遵守 COPPA（美国）/ GDPR-K（欧盟）</li>
+      <li>账号删除功能：Google Play 要求 App 提供账号删除入口（2024年起强制）</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 本项目示例</div>
+      本项目各马甲的隐私政策页面托管在各自域名下，如 call360 对应 <code>call360.mmcallsapp.com/privacy</code>。
+      在 <code>product_string.dart</code> 的 <code>Call360LocalStrings</code> 中有 <code>privacyUrl</code> 字段指向该地址，App 内的「隐私政策」按钮直接跳转。
+      Play Console 商店配置的隐私政策链接填入相同 URL。
+    </div>
+  </div>
+</div>
+
+<!-- 数据安全表单 -->
+<div class="kcard" style="--kc-color:#546e7a;">
+  <div class="kcard-head">
+    <div class="icon">📋</div>
+    <div class="meta">
+      <h3>数据安全申报 — Google Play &amp; App Store 双平台要求</h3>
+      <div class="tagline">在商店后台填写「收集了哪些数据」，展示给用户看；不填或填错会被下架</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://support.google.com/googleplay/android-developer/answer/10787469" target="_blank">📖 Play 数据安全</a>
+      <a class="doc-link" href="https://developer.apple.com/app-store/app-privacy-details/" target="_blank">🍎 Apple 隐私标签</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        两大应用商店都要求开发者在后台主动申报 App 的数据收集行为，展示给用户：<br><br>
+        <b>Google Play — 数据安全（Data Safety）</b><br>
+        在 Play Console 的「数据安全」页面填写问卷：收集了哪些数据类别（位置、联系人、财务、设备标识符等）、用途是什么、是否加密传输、是否与第三方共享。填写后会在商店页面展示「数据安全」卡片。<br><br>
+        <b>App Store — 隐私营养标签（Privacy Nutrition Labels）</b><br>
+        在 App Store Connect 的「App 隐私」页面填写，类似食品营养标签。分「用于追踪」「与你关联」「不与你关联」三类。每次更新版本时，如果数据收集行为改变，必须重新更新。
+      </div>
+      <div class="why">💡 常见坑：第三方 SDK（AdMob、Facebook、Firebase）本身也会收集数据，它们收集的数据也要计入你的申报。很多开发者只申报自己代码里的数据，漏报 SDK，结果被审核标记。</div>
+    </div>
+
+    <div style="background:#f8faff;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #e8eef8;">
+      <div style="font-size:12px;font-weight:700;color:#546e7a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">📊 本项目典型数据收集项（供申报参考）</div>
+      <div style="font-size:12.5px;color:#2d3748;line-height:2;">
+        <b>账号信息</b>：手机号（登录认证）、Google 账号（Google 登录）<br>
+        <b>设备标识符</b>：Advertising ID（广告归因）、Device ID（防刷机）<br>
+        <b>联系人</b>：本地通讯录（快速拨号，经用户授权）<br>
+        <b>财务信息</b>：购买记录（内购验证，不存储卡号）<br>
+        <b>崩溃日志</b>：Crashlytics 收集（含设备型号、系统版本、堆栈信息）<br>
+        <b>广告数据</b>：AdMob / TradPlus / AppLovin 等 SDK 收集（需在申报中注明）
+      </div>
+    </div>
+
+    <ul class="kpoints">
+      <li>Play「数据安全」和 iOS「隐私标签」填写内容要与隐私政策保持一致</li>
+      <li>第三方 SDK 的数据收集行为需查阅各 SDK 官方的隐私披露文档</li>
+      <li>数据安全表单填写后需等待 Google 审核才在商店页面生效</li>
+      <li>Apple 隐私标签每次 App 更新前都需确认是否有变化</li>
+      <li>未填写数据安全表单的 App，Play 商店页会显示「开发者尚未提供数据安全信息」警告</li>
+      <li>GDPR（欧盟）要求首次使用前弹出同意授权弹窗（Cookie/数据处理同意）</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 审核政策合规 -->
+<div class="kcard" style="--kc-color:#bf360c;">
+  <div class="kcard-head">
+    <div class="icon">⚖️</div>
+    <div class="meta">
+      <h3>应用商店审核 &amp; 政策合规</h3>
+      <div class="tagline">提交前必须了解：哪些内容会被拒，哪些敏感权限需要额外说明</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://support.google.com/googleplay/android-developer/answer/9899234" target="_blank">📖 Play 政策中心</a>
+      <a class="doc-link" href="https://developer.apple.com/app-store/review/guidelines/" target="_blank">🍎 App Store 审核指南</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        两个平台都有人工 + 机器审核，提交后不是立刻上线：<br><br>
+        <b>Google Play</b>：通常 1–3 天，机器审核为主，人工复查高风险 App。审核通过后可自动或手动发布。被拒后可修改后重新提交，无次数限制。<br><br>
+        <b>App Store</b>：通常 1–3 天，人工审核为主，更严格。被拒后有申诉渠道（Resolution Center）。连续被拒或违反重大政策可能导致开发者账号被封。
+      </div>
+      <div class="why">💡 VoIP 类 App（本项目类型）属于高审核风险类别，Play 和 Apple 都对通话录音、联系人权限、后台运行有额外审查。</div>
+    </div>
+
+    <div style="background:#fff8f6;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #ffccbc;">
+      <div style="font-size:12px;font-weight:700;color:#bf360c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">⚠️ 常见被拒原因</div>
+      <div style="font-size:12.5px;color:#2d3748;line-height:2;">
+        <b>敏感权限未说明</b>：申请了 READ_CONTACTS / CALL_LOG / 录音权限，但没有在商店说明用途<br>
+        <b>隐私政策缺失或链接失效</b>：最常见，提交前务必检查链接可访问<br>
+        <b>截图与实际功能不符</b>：商店截图展示了 App 没有的功能<br>
+        <b>内购商品未配置</b>：代码里有内购逻辑，但 Play / ASC 后台没有创建对应商品<br>
+        <b>iOS：缺少 Sign in with Apple</b>：有 Google 登录但没有 Apple 登录<br>
+        <b>iOS：后台模式未声明</b>：App 在后台保持通话连接，但 Info.plist 没有声明 VoIP 后台模式
+      </div>
+    </div>
+
+    <ul class="kpoints">
+      <li>Play 新账号前几次上传审核较慢（可能 7 天以上），属正常现象</li>
+      <li>敏感权限（位置、录音、联系人）需在 App 内使用时才请求，不能启动就全部申请</li>
+      <li>截图必须使用真实设备截图，不能只用设计稿</li>
+      <li>分级（内容分级问卷）：Play 要求填写 IARC 分级问卷，涉及暴力/成人内容的会限制受众</li>
+      <li>App Store 被拒后可在 Resolution Center 与苹果审核员文字沟通说明情况</li>
+      <li>重大政策违规（欺诈、恶意代码）可能导致账号封禁且无法申诉</li>
+    </ul>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PHASE 7  广告变现
+═══════════════════════════════════════════ -->
+<div class="phase" style="--phase-color:#7c4dff;">
+  <div class="phase-num">7</div>
+  <div>
+    <div class="phase-title">广告变现</div>
+    <div class="phase-desc">通过展示广告获得收入</div>
+  </div>
+  <div class="phase-line"></div>
+</div>
+
+<!-- AdMob -->
+<div class="kcard" style="--kc-color:#1a73e8;">
+  <div class="kcard-head">
+    <div class="icon">📢</div>
+    <div class="meta">
+      <h3>AdMob + 广告聚合平台</h3>
+      <div class="tagline">在 App 中展示广告，按展示 / 点击 / 激励获得收入</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developers.google.com/admob/android/quick-start" target="_blank">📖 AdMob 文档</a>
+      <a class="doc-link" href="https://www.applovin.com/max/" target="_blank">🔺 AppLovin MAX</a>
+      <a class="doc-link" href="https://www.tradplus.com" target="_blank">📊 TradPlus</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        <b>AdMob</b>（Google）是最主流的移动广告平台，提供横幅、插屏、激励视频、原生广告等多种形式。<br><br>
+        <b>广告聚合平台</b>（如 AppLovin MAX、TradPlus、TopOn）接入多个广告平台并自动竞价，选出出价最高的广告展示，提升 eCPM（千次展示收入）。
+      </div>
+      <div class="why">💡 本项目采用分层（Tier）策略：Tier1~3 用 Admob，Tier4 用 TradPlus，Tier5~6 用 MAX，Tier7 用 TopOn，按优先级填充广告位。</div>
+    </div>
+    <ul class="kpoints">
+      <li><b>App Open Ad</b>：App 启动时展示的开屏广告</li>
+      <li><b>Native Ad</b>：融入内容的原生广告</li>
+      <li><b>Interstitial</b>：插屏广告（全屏）</li>
+      <li><b>Rewarded</b>：激励视频（看完获得奖励）</li>
+      <li><b>Banner</b>：固定位置横幅广告</li>
+      <li>每个马甲需独立注册 App ID，广告收入单独结算</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 本项目示例</div>
+      在 <code>product_ad_unit_id.dart</code> 中，每个马甲有一个 <code>_XxxAdUnitIDs</code> 类，配置该马甲在各广告平台的 Unit ID。call360 的广告 ID 由运营在后台创建后提供，目前以空字符串占位。
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PHASE 8  多品牌马甲包（综合应用）
+═══════════════════════════════════════════ -->
+<div class="phase" style="--phase-color:#00bcd4;">
+  <div class="phase-num">8</div>
+  <div>
+    <div class="phase-title">多品牌马甲包（综合应用）</div>
+    <div class="phase-desc">将以上所有知识组合起来，从一套代码派生出多个品牌 App</div>
+  </div>
+  <div class="phase-line"></div>
+</div>
+
+<div class="kcard" style="--kc-color:#00bcd4;">
+  <div class="kcard-head">
+    <div class="icon">🎭</div>
+    <div class="meta">
+      <h3>White-label App（马甲包）架构设计</h3>
+      <div class="tagline">用 Product Flavor + Flutter Product 层实现「一套代码，多个品牌」</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.android.com/build/build-variants#product-flavors" target="_blank">📖 Product Flavors</a>
+      <a class="doc-link" href="https://dart.dev/language/classes" target="_blank">🎯 Dart 类与继承</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        马甲包（White-label App）是指同一套业务逻辑，通过替换 Logo、颜色、名称、第三方 Key 等，派生出多个外观不同的 App 分别上架。<br><br>
+        架构分两层：<br>
+        ① <b>Android 层</b>（Product Flavor）：处理包名、图标、google-services.json、签名的差异<br>
+        ② <b>Flutter 层</b>（product_config / string / resource / ad_unit_id）：处理运行时的 URL、颜色、商品 ID、广告 ID 差异
+      </div>
+      <div class="why">💡 关键设计：Flutter 层用 <code>packageName.contains('xxx')</code> 判断当前运行的是哪个马甲，然后返回对应的配置——这比编译时注入更灵活，一个 flavor 的改动不影响其他 flavor。</div>
+    </div>
+    <ul class="kpoints">
+      <li>包名判断：<code>ProductConfig.isCall360 = packageName.contains('call360')</code></li>
+      <li>资产前缀：<code>assetsPrefixCall360 = 'call360/'</code>，图片按目录隔离</li>
+      <li>字符串继承：<code>Call360LocalStrings extends BaseLocalStrings</code></li>
+      <li>颜色继承：<code>Call360ColorsConstants extends BaseColorsConstants</code></li>
+      <li>广告继承：<code>_Call360AdUnitIDs extends _JCBaseAdUnitIDs</code></li>
+      <li>Credential 插件：用 assetsPrefix 映射各马甲的加密 Key</li>
+    </ul>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PHASE 9  CI/CD 自动化
+═══════════════════════════════════════════ -->
+<div class="phase" style="--phase-color:#6d4c41;">
+  <div class="phase-num">9</div>
+  <div>
+    <div class="phase-title">CI/CD 自动化</div>
+    <div class="phase-desc">把繁琐的手动打包流程变成一条命令，多马甲项目尤其必要</div>
+  </div>
+  <div class="phase-line"></div>
+</div>
+
+<!-- 为什么需要CI/CD -->
+<div class="kcard" style="--kc-color:#6d4c41;">
+  <div class="kcard-head">
+    <div class="icon">🤖</div>
+    <div class="meta">
+      <h3>为什么多马甲项目特别需要 CI/CD</h3>
+      <div class="tagline">手动打包 12 个马甲：重复操作多、容易漏步骤、人为失误风险高</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://docs.github.com/en/actions" target="_blank">📖 GitHub Actions</a>
+      <a class="doc-link" href="https://docs.fastlane.tools/" target="_blank">🚀 Fastlane</a>
+      <a class="doc-link" href="https://docs.codemagic.io/" target="_blank">☁️ Codemagic</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        CI/CD（持续集成 / 持续交付）把「代码提交 → 构建 → 测试 → 打包 → 上传」的流程自动化。对于多马甲项目，每次发版都需要对多个 flavor 重复相同步骤，手动操作极易出错。<br><br>
+        <b>CI（Continuous Integration）</b>：代码推送后自动构建和测试，及早发现问题<br>
+        <b>CD（Continuous Delivery）</b>：自动打包并上传到 Play Console / App Store Connect，甚至自动发布
+      </div>
+      <div class="why">💡 多马甲项目的 CD 价值尤其大：一次配置，之后每个马甲的打包上传都能一键完成，不再需要开发者手动重复操作。</div>
+    </div>
+
+    <!-- 当前手动流程的痛点 -->
+    <div style="background:#fff8f5;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #d7b9a8;">
+      <div style="font-size:12px;font-weight:700;color:#6d4c41;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">😓 当前手动打包需要做的事（以 iOS 为例）</div>
+      <div style="font-size:12.5px;color:#2d3748;line-height:2;">
+        ① 切换到正式 credential（<code>sed</code> 修改 pubspec.yaml 中的 git 仓库地址）<br>
+        ② 注释掉其他马甲的 assets，只保留当前马甲的资源<br>
+        ③ <code>flutter pub get</code> → <code>pod install</code> → 运行 <code>fix_jcmanager_prefix.sh</code><br>
+        ④ Xcode 选对 Scheme 和 Build Configuration，执行 Archive<br>
+        ⑤ Organizer 上传到 App Store Connect<br>
+        ⑥ 打包完成后恢复 pubspec.yaml 的改动（credential 和 assets）<br>
+        ⑦ 对下一个马甲重复以上步骤<br><br>
+        <b>换成 CI/CD 后：</b>触发一次流水线，脚本自动按顺序完成所有步骤，开发者只需等待结果通知。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Fastlane -->
+<div class="kcard" style="--kc-color:#e65100;">
+  <div class="kcard-head">
+    <div class="icon">🚀</div>
+    <div class="meta">
+      <h3>Fastlane — 移动端打包自动化首选工具</h3>
+      <div class="tagline">用 Ruby DSL 描述打包流程，同时支持 Android 和 iOS，与各大 CI 平台集成</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://docs.fastlane.tools/getting-started/android/setup/" target="_blank">📖 Android 接入</a>
+      <a class="doc-link" href="https://docs.fastlane.tools/getting-started/ios/setup/" target="_blank">🍎 iOS 接入</a>
+      <a class="doc-link" href="https://docs.fastlane.tools/actions/supply/" target="_blank">📦 supply（上传 Play）</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        Fastlane 是专为移动端设计的自动化工具，核心概念是 <b>lane（泳道）</b>：每个 lane 是一系列 action 的组合，如「构建 → 上传 → 发通知」。写在 <code>Fastfile</code> 中，像写脚本一样描述流程。<br><br>
+        常用 action：<br>
+        &nbsp;&nbsp;• <b>gradle</b>：调用 Android Gradle 构建 APK/AAB<br>
+        &nbsp;&nbsp;• <b>supply</b>：上传 AAB 到 Google Play<br>
+        &nbsp;&nbsp;• <b>gym</b>：调用 xcodebuild 构建 iOS Archive<br>
+        &nbsp;&nbsp;• <b>deliver</b>：上传 IPA 到 App Store Connect<br>
+        &nbsp;&nbsp;• <b>match</b>：自动管理 iOS 证书和 Provisioning Profile（推荐）
+      </div>
+      <div class="why">💡 Fastlane match 是 iOS 证书管理的最佳实践：把证书统一存在私有 Git 仓库，团队成员和 CI 机器都从同一个地方拉取，避免「我本机能打，CI 打不了」的问题。</div>
+    </div>
+    <ul class="kpoints">
+      <li>Fastfile 用 Ruby 语法，不需要会 Ruby，照葫芦画瓢即可</li>
+      <li>lane 可以有参数，如 <code>fastlane android deploy flavor:call360</code></li>
+      <li>内置 Slack / 钉钉通知 action，打包完成自动发消息</li>
+      <li>match 加密存储证书，用 git 管理，团队共享不混乱</li>
+      <li>pilot（TestFlight 上传）和 supply（Play 上传）都有增量上传能力</li>
+      <li>可在本地运行，也可挂到 GitHub Actions / GitLab CI 等平台</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">Fastfile 示例（Android 多 Flavor）</div>
+      <code>
+        lane :deploy_android do |options|<br>
+        &nbsp;&nbsp;flavor = options[:flavor]<br>
+        &nbsp;&nbsp;gradle(task: "bundle", flavor: flavor, build_type: "Release")<br>
+        &nbsp;&nbsp;supply(track: "internal", aab: "app/build/outputs/bundle/#{flavor}Release/app-#{flavor}-release.aab")<br>
+        end
+      </code>
+    </div>
+  </div>
+</div>
+
+<!-- GitHub Actions / GitLab CI -->
+<div class="kcard" style="--kc-color:#24292e;">
+  <div class="kcard-head">
+    <div class="icon">⚙️</div>
+    <div class="meta">
+      <h3>CI 平台 — GitHub Actions / GitLab CI / Codemagic</h3>
+      <div class="tagline">提供运行 Fastlane 的云端机器，代码推送自动触发构建</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://docs.github.com/en/actions/use-cases-and-examples/building-and-testing/building-and-testing-swift" target="_blank">📖 GitHub Actions</a>
+      <a class="doc-link" href="https://docs.gitlab.com/ee/ci/" target="_blank">🦊 GitLab CI</a>
+      <a class="doc-link" href="https://docs.codemagic.io/flutter-configuration/flutter-projects/" target="_blank">☁️ Codemagic Flutter</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        CI 平台提供云端的虚拟机（Runner），在代码推送或手动触发时自动运行构建脚本。不同平台特点：<br><br>
+        <b>GitHub Actions</b>：与 GitHub 仓库无缝集成，免费额度每月 2000 分钟，macOS Runner 较贵，但生态最成熟。<br><br>
+        <b>GitLab CI</b>：本项目使用 GitLab 托管代码，GitLab CI 与仓库天然集成，可以用自托管 Runner（自己的 Mac mini）降低成本。<br><br>
+        <b>Codemagic</b>：专为 Flutter 设计，配置最简单，内置 Flutter 环境，对 Flutter 多 flavor 支持开箱即用，按分钟计费。
+      </div>
+      <div class="why">💡 iOS 构建必须在 macOS 机器上执行（苹果限制）。GitHub/GitLab macOS Runner 成本较高，团队常见做法是自建一台 Mac mini 作为 self-hosted runner，或选用 Codemagic 这类专用平台。</div>
+    </div>
+
+    <div style="background:#f6f8fa;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #e1e4e8;">
+      <div style="font-size:12px;font-weight:700;color:#24292e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">⚖️ 三个平台对比</div>
+      <div style="font-size:12.5px;color:#2d3748;line-height:2.2;">
+        <b>GitHub Actions</b>：生态最好，公共仓库免费，私有仓库有限额，macOS 贵<br>
+        <b>GitLab CI</b>：与本项目 GitLab 仓库直接集成，自建 Runner 成本低<br>
+        <b>Codemagic</b>：Flutter 专属，配置最少，不用写 YAML，按使用付费<br>
+        <b>自建 Jenkins + Mac mini</b>：成本最低（硬件一次性投入），适合打包频繁的团队
+      </div>
+    </div>
+
+    <ul class="kpoints">
+      <li>Android 构建可在 Linux Runner 上完成，便宜且快</li>
+      <li>iOS 构建必须在 macOS Runner 上，是 CI 成本的主要来源</li>
+      <li>Secrets / Environment Variables：keystore 密码、证书、API Key 不能写在代码里，存在 CI 平台的 Secrets 中</li>
+      <li>触发方式：push 到特定分支、打 tag、手动触发（workflow_dispatch）</li>
+      <li>产物（Artifact）：构建好的 AAB/IPA 可上传为 CI 产物，方便下载</li>
+      <li>本项目用 GitLab 托管，最直接的选择是 GitLab CI + 自建 macOS Runner</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 凭证安全 -->
+<div class="kcard" style="--kc-color:#558b2f;">
+  <div class="kcard-head">
+    <div class="icon">🔑</div>
+    <div class="meta">
+      <h3>CI 环境中的凭证安全管理</h3>
+      <div class="tagline">Keystore、证书、API Key 绝不能提交到 git，统一用 CI Secrets 注入</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions" target="_blank">📖 GitHub Secrets</a>
+      <a class="doc-link" href="https://docs.gitlab.com/ee/ci/variables/" target="_blank">🦊 GitLab CI Variables</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        CI 构建需要用到很多敏感信息：Android Keystore 文件 + 密码、iOS 证书 + 描述文件、Google Play 服务账号 JSON、App Store Connect API Key 等。这些<b>绝对不能提交到 git 仓库</b>（即使是私有仓库）。<br><br>
+        标准做法：将敏感信息存储在 CI 平台的 <b>Secrets / CI Variables</b> 中，构建时作为环境变量注入，或将二进制文件（Keystore、证书）Base64 编码后存为 Secret，CI 脚本解码后使用。
+      </div>
+      <div class="why">💡 本项目的 credential（包含 jcAppKey 等加密密钥）已通过私有 git 仓库（credential.git）隔离。但 Keystore 文件和密码也需要同样处理，不能直接存在业务仓库中。</div>
+    </div>
+
+    <div style="background:#f1f8e9;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #c5e1a5;">
+      <div style="font-size:12px;font-weight:700;color:#558b2f;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">📌 本项目 CI 接入时需要管理的敏感信息</div>
+      <div style="font-size:12.5px;color:#2d3748;line-height:2;">
+        <b>Android</b><br>
+        &nbsp;&nbsp;• <code>justalk.keystore</code> / <code>juscall.keystore</code> 文件（Base64 编码存 Secret）<br>
+        &nbsp;&nbsp;• <code>key.properties</code> 中的 storePassword / keyPassword<br>
+        &nbsp;&nbsp;• Google Play 服务账号 JSON（用于 Fastlane supply 上传）<br><br>
+        <b>iOS</b><br>
+        &nbsp;&nbsp;• Distribution Certificate（.p12 + 密码）<br>
+        &nbsp;&nbsp;• Provisioning Profiles（JusCall App Store、DuoVoice App Store）<br>
+        &nbsp;&nbsp;• App Store Connect API Key（用于 Fastlane deliver 上传）<br><br>
+        <b>通用</b><br>
+        &nbsp;&nbsp;• SSH Key（用于拉取私有 git 仓库：credential.git、jcmanager.git 等）
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PHASE 10  本地数据持久化
+═══════════════════════════════════════════ -->
+<div class="phase" style="--phase-color:#0277bd;">
+  <div class="phase-num">10</div>
+  <div>
+    <div class="phase-title">本地数据持久化</div>
+    <div class="phase-desc">App 关闭后数据不丢失；不同场景选不同方案</div>
+  </div>
+  <div class="phase-line"></div>
+</div>
+
+<!-- 三种持久化方案 -->
+<div class="kcard" style="--kc-color:#0277bd;">
+  <div class="kcard-head">
+    <div class="icon">💾</div>
+    <div class="meta">
+      <h3>三种持久化方案 — SharedPreferences / SQLite / Realm</h3>
+      <div class="tagline">按数据复杂度选型：键值对用 SharedPreferences，结构化数据用 SQLite 或 Realm</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://pub.dev/packages/shared_preferences" target="_blank">📖 SharedPreferences</a>
+      <a class="doc-link" href="https://pub.dev/packages/sqflite" target="_blank">🗄️ sqflite</a>
+      <a class="doc-link" href="https://www.mongodb.com/docs/realm/sdk/flutter/" target="_blank">🔵 Realm Flutter</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        App 内的数据持久化有三个层次，从简单到复杂：<br><br>
+        <b>① SharedPreferences（键值对）</b><br>
+        存储少量简单数据，如用户设置、登录 Token、开关状态。底层是 XML 文件（Android）/ NSUserDefaults（iOS）。读写简单，不支持查询。<br><br>
+        <b>② SQLite（关系型数据库）</b><br>
+        存储有结构的数据，支持 SQL 查询、联表、事务。Flutter 用 <code>sqflite</code> 插件接入。适合通讯录、消息记录、账单等表格型数据。<br><br>
+        <b>③ Realm（对象型数据库）</b><br>
+        由 MongoDB 出品的移动端专用数据库。直接存储 Dart 对象，不需要写 SQL，性能比 SQLite 更高，支持实时监听数据变化（reactive）。适合数据量大、查询复杂、需要实时同步的场景。
+      </div>
+      <div class="why">💡 选型原则：登录态/配置 → SharedPreferences；通讯录/本地消息 → SQLite 或 Realm；需要离线优先 + 云同步 → Realm（可接 MongoDB Atlas 实现云端同步）。</div>
+    </div>
+
+    <div style="background:#e3f2fd;border-radius:10px;padding:16px 18px;margin:14px 0;border:1px solid #90caf9;">
+      <div style="font-size:12px;font-weight:700;color:#0277bd;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">📊 三种方案对比</div>
+      <div style="font-size:12.5px;color:#2d3748;line-height:2.2;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <tr style="border-bottom:1px solid #bbdefb;">
+            <th style="text-align:left;padding:4px 8px;color:#0277bd;"></th>
+            <th style="text-align:left;padding:4px 8px;color:#0277bd;">SharedPreferences</th>
+            <th style="text-align:left;padding:4px 8px;color:#0277bd;">SQLite (sqflite)</th>
+            <th style="text-align:left;padding:4px 8px;color:#0277bd;">Realm</th>
+          </tr>
+          <tr style="border-bottom:1px solid #e3f2fd;">
+            <td style="padding:4px 8px;font-weight:600;">数据结构</td>
+            <td style="padding:4px 8px;">Key-Value</td>
+            <td style="padding:4px 8px;">表 / 行 / 列</td>
+            <td style="padding:4px 8px;">对象</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e3f2fd;">
+            <td style="padding:4px 8px;font-weight:600;">查询能力</td>
+            <td style="padding:4px 8px;">❌ 无</td>
+            <td style="padding:4px 8px;">✅ SQL</td>
+            <td style="padding:4px 8px;">✅ Realm Query</td>
+          </tr>
+          <tr style="border-bottom:1px solid #e3f2fd;">
+            <td style="padding:4px 8px;font-weight:600;">性能</td>
+            <td style="padding:4px 8px;">快（内存缓存）</td>
+            <td style="padding:4px 8px;">中等</td>
+            <td style="padding:4px 8px;">快（零拷贝）</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 8px;font-weight:600;">典型用途</td>
+            <td style="padding:4px 8px;">Token、设置</td>
+            <td style="padding:4px 8px;">消息、账单</td>
+            <td style="padding:4px 8px;">通讯录、大量结构化数据</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 本项目示例</div>
+      本项目同时用了三种方案：<br><br>
+      <b>SharedPreferences</b>（<code>shared_preferences: ^2.5.3</code>）：存储用户登录状态、本地设置项（语言、通知开关）、缓存的 Remote Config 值等轻量数据。<br><br>
+      <b>sqflite</b>（<code>sqflite: ^2.4.1</code>）：存储本地消息记录、通话记录（Recents）、缓存的联系人数据，支持按时间范围查询、分页加载。<br><br>
+      <b>Realm</b>（<code>realm: ^20.2.0</code>）：存储需要实时响应 UI 变化的结构化数据，Realm 的 <code>RealmResults</code> 支持监听器，数据变化时自动触发 UI 刷新，无需手动通知。
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PHASE 11  调试与测试
+═══════════════════════════════════════════ -->
+<div class="phase" style="--phase-color:#1565c0;">
+  <div class="phase-num">11</div>
+  <div>
+    <div class="phase-title">调试与测试</div>
+    <div class="phase-desc">找到问题、验证功能、保证代码质量的工具与方法</div>
+  </div>
+  <div class="phase-line"></div>
+</div>
+
+<!-- Flutter DevTools -->
+<div class="kcard" style="--kc-color:#1565c0;">
+  <div class="kcard-head">
+    <div class="icon">🔬</div>
+    <div class="meta">
+      <h3>Flutter DevTools — Flutter 官方调试套件</h3>
+      <div class="tagline">性能分析、Widget 树检查、网络请求监控，一个浏览器页面搞定</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://docs.flutter.dev/tools/devtools/overview" target="_blank">📖 DevTools 文档</a>
+      <a class="doc-link" href="https://docs.flutter.dev/tools/devtools/performance" target="_blank">📊 性能分析</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        Flutter DevTools 是 Flutter 官方提供的浏览器端调试工具，运行 <code>flutter run</code> 后在终端输出的链接打开即可使用。主要功能：<br><br>
+        <b>Widget Inspector</b>：可视化查看 Widget 树结构，点击屏幕上任意元素高亮对应 Widget，排查布局问题。<br><br>
+        <b>Performance</b>：帧率（FPS）监控、Jank 检测，找出导致掉帧的 Widget rebuild。<br><br>
+        <b>Network</b>：查看 App 发出的所有 HTTP 请求和响应，不需要抓包工具。<br><br>
+        <b>Memory</b>：内存占用分析，检测内存泄漏。<br><br>
+        <b>Logging</b>：查看 <code>print()</code> 和 <code>debugPrint()</code> 输出，比终端更清晰。
+      </div>
+      <div class="why">💡 遇到「界面卡顿」「布局错位」「某个请求没发出去」这三类问题，优先用 DevTools，比盲目加 print 日志效率高很多。</div>
+    </div>
+    <ul class="kpoints">
+      <li>运行 <code>flutter run</code> 后，VS Code / Android Studio 会自动弹出 DevTools 入口</li>
+      <li>也可以命令行运行 <code>dart devtools</code> 手动开启</li>
+      <li>Hot Reload（<code>r</code>）：修改代码后毫秒级刷新 UI，无需重启</li>
+      <li>Hot Restart（<code>R</code>）：重新执行 main()，状态重置，比 Hot Reload 更彻底</li>
+      <li>Widget Inspector 的「Select Widget Mode」可点击屏幕直接定位到代码</li>
+      <li>Performance Overlay：在 App 上叠加显示 GPU/CPU 帧率曲线</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Logcat & 原生调试 -->
+<div class="kcard" style="--kc-color:#3949ab;">
+  <div class="kcard-head">
+    <div class="icon">📋</div>
+    <div class="meta">
+      <h3>Logcat &amp; 原生层调试</h3>
+      <div class="tagline">Flutter DevTools 看不到原生层日志；Logcat 是 Android 崩溃和原生插件调试的主要手段</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://developer.android.com/tools/logcat" target="_blank">📖 Logcat 文档</a>
+      <a class="doc-link" href="https://developer.android.com/studio/debug" target="_blank">🐛 Android 调试</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        Flutter App 实际上分两层运行：上层是 Dart 代码（Flutter），下层是原生 Android/iOS 代码（Java/Kotlin/OC/Swift）。Flutter DevTools 只能看到 Dart 层的日志，原生层的日志必须用平台工具查看：<br><br>
+        <b>Android — Logcat</b>：Android Studio 底部的 Logcat 面板，或命令行 <code>adb logcat</code>。所有原生代码的 <code>Log.d()</code>、系统崩溃堆栈、广告 SDK 日志都在这里。<br><br>
+        <b>iOS — Console / Xcode</b>：Xcode 底部的调试控制台，或 macOS 的 Console.app。
+      </div>
+      <div class="why">💡 「Flutter 层没报错但功能不正常」时，多半是原生插件出了问题——先去 Logcat 看有没有 Exception 或 ERROR 级别的日志。</div>
+    </div>
+    <ul class="kpoints">
+      <li>Logcat 过滤器：输入包名或 Tag 过滤，避免日志太多看不到关键信息</li>
+      <li><code>adb logcat -c</code>：清空 Logcat 缓存，方便复现特定问题</li>
+      <li><code>adb install app-debug.apk</code>：命令行安装调试包到真机</li>
+      <li><code>adb shell dumpsys activity</code>：查看当前 Activity 栈</li>
+      <li>Firebase Crashlytics：线上崩溃自动上报，可在控制台查看完整堆栈</li>
+      <li>广告 SDK 问题：先在 Logcat 过滤 Tag（如 <code>TradPlus</code>、<code>Admob</code>）查看初始化日志</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 本项目调试经验</div>
+      本项目开发 call360 马甲时，出现 <code>JCClient app key cannot be empty!</code> 崩溃。这个错误来自原生 JC SDK（Java 层），Flutter DevTools 看不到，需要在 Logcat 中搜索 <code>JCClient</code> 才能看到完整报错，进而定位到是 credential 插件缺少 call360 的 key 映射。
+    </div>
+  </div>
+</div>
+
+<!-- 测试 -->
+<div class="kcard" style="--kc-color:#6a1b9a;">
+  <div class="kcard-head">
+    <div class="icon">🧪</div>
+    <div class="meta">
+      <h3>Flutter 测试体系 — 单元 / Widget / 集成测试</h3>
+      <div class="tagline">三个层次的测试覆盖不同范围，从函数级到完整用户流程</div>
+    </div>
+    <div class="links">
+      <a class="doc-link" href="https://docs.flutter.dev/testing/overview" target="_blank">📖 Flutter 测试文档</a>
+      <a class="doc-link" href="https://docs.flutter.dev/cookbook/testing/unit/introduction" target="_blank">🔬 单元测试</a>
+      <a class="doc-link" href="https://docs.flutter.dev/cookbook/testing/widget/introduction" target="_blank">🖼️ Widget 测试</a>
+    </div>
+  </div>
+  <div class="kcard-body">
+    <div class="explain">
+      <div class="what">
+        Flutter 测试分三个层次：<br><br>
+        <b>① 单元测试（Unit Test）</b>：测试单个函数或类的逻辑，不需要设备，运行最快。适合测试工具函数、数据解析、业务逻辑。<br><br>
+        <b>② Widget 测试（Widget Test）</b>：在虚拟环境中渲染 Widget，验证 UI 的展示和交互逻辑，不需要真机，比集成测试快。<br><br>
+        <b>③ 集成测试（Integration Test）</b>：在真机或模拟器上运行完整的用户操作流程，如「点击登录按钮 → 输入手机号 → 验证跳转到首页」，最接近真实场景但最慢。
+      </div>
+      <div class="why">💡 移动端实践中，单元测试性价比最高——覆盖核心业务逻辑（如版本号解析、数据格式转换），防止重构时引入 regression。Widget 测试和集成测试成本较高，一般只覆盖关键流程。</div>
+    </div>
+    <ul class="kpoints">
+      <li>测试文件放在 <code>test/</code> 目录，命名以 <code>_test.dart</code> 结尾</li>
+      <li>运行全部测试：<code>flutter test</code></li>
+      <li>单元测试用 <code>test()</code> 函数，断言用 <code>expect()</code></li>
+      <li>Widget 测试用 <code>testWidgets()</code>，通过 <code>WidgetTester</code> 模拟点击/输入</li>
+      <li>Mock：用 <code>mockito</code> 包模拟网络请求、数据库等外部依赖</li>
+      <li>CI 中加入 <code>flutter test</code> 步骤，push 代码自动跑测试，不通过则阻断构建</li>
+    </ul>
+    <div class="example" style="margin-top:14px;">
+      <div class="ex-title">📌 单元测试示例（测试版本号解析逻辑）</div>
+      <code>
+        test('versionCode 应大于上一版本', () {<br>
+        &nbsp;&nbsp;final current = 665200520;<br>
+        &nbsp;&nbsp;final previous = 665150312;<br>
+        &nbsp;&nbsp;expect(current > previous, isTrue);<br>
+        });
+      </code>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     流程图
+═══════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════
+     完整流程图：从 0 到 1 上线一个 App
+══════════════════════════════════════════════════ -->
+<div class="flow-section" style="margin-top:56px;">
+  <h2>🗺️ 从 0 到 1 上线一个 App — 完整流程</h2>
+  <p class="flow-sub">涵盖从立项到发布的全部关键节点，Android / iOS 并行标注</p>
+  <div class="flow">
+
+    <div class="fnode start"><div class="fnode-title">💡 产品立项：确定需求与目标用户</div></div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <!-- 阶段一：准备 -->
+    <div class="fstage" style="--stage-color:#546e7a;--stage-bg:#eceff1;">
+      <div class="fstage-label" style="color:#546e7a;">阶段一</div>
+      <div class="fstage-line"></div>
+      <div class="fstage-label" style="color:#546e7a;">准备工作</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-a">
+      <div class="fnode-ico">🛠️</div>
+      <div class="fnode-body">
+        <div class="fnode-title">搭建开发环境</div>
+        <div class="fnode-detail">
+          安装 Android Studio、JDK（Temurin 17）、Flutter / FVM<br>
+          macOS 另需：Xcode、CocoaPods<br>
+          运行 <b>flutter doctor</b> 直到全绿
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#d4edda;--fn-badge-color:#155724;">环境</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-a">
+      <div class="fnode-ico">📝</div>
+      <div class="fnode-body">
+        <div class="fnode-title">注册账号 &amp; 申请服务</div>
+        <div class="fnode-detail">
+          Google Play Console（$25 一次性）· Apple Developer Program（$99/年）<br>
+          Firebase 项目 · AdMob 账号 · 广告聚合平台账号（TradPlus / AppLovin）
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#d4edda;--fn-badge-color:#155724;">账号</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-a">
+      <div class="fnode-ico">🏗️</div>
+      <div class="fnode-body">
+        <div class="fnode-title">技术选型</div>
+        <div class="fnode-detail">
+          框架：Flutter（跨端）或原生（Android-only / iOS-only）<br>
+          状态管理：Provider / GetX / BLoC<br>
+          网络层：dio + Retrofit · 本地数据库：SharedPreferences / SQLite / Realm
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#d4edda;--fn-badge-color:#155724;">架构</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <!-- 阶段二：开发 -->
+    <div class="fstage" style="--stage-color:#1a73e8;--stage-bg:#e8f0fe;">
+      <div class="fstage-label" style="color:#1a73e8;">阶段二</div>
+      <div class="fstage-line"></div>
+      <div class="fstage-label" style="color:#1a73e8;">核心开发</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-b">
+      <div class="fnode-ico">💻</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Flutter 项目初始化 &amp; 架构搭建</div>
+        <div class="fnode-detail">
+          创建项目 → 配置 pubspec.yaml（依赖、资源）→ 搭建网络层（dio / Retrofit）<br>
+          搭建状态管理架构 · 配置路由 · 建立目录结构
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#e3f2fd;--fn-badge-color:#0d47a1;">Flutter</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-b">
+      <div class="fnode-ico">🔌</div>
+      <div class="fnode-body">
+        <div class="fnode-title">接入原生 SDK &amp; 第三方插件</div>
+        <div class="fnode-detail">
+          通话 SDK、广告 SDK、推送通知、登录（Google / Apple）<br>
+          Platform Channel 封装私有 SDK · 检查并添加 ProGuard keep 规则
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#e3f2fd;--fn-badge-color:#0d47a1;">插件</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-b">
+      <div class="fnode-ico">🧱</div>
+      <div class="fnode-body">
+        <div class="fnode-title">功能开发 &amp; 本地数据持久化</div>
+        <div class="fnode-detail">
+          业务功能实现 · 本地数据库设计（Realm / SQLite / SharedPreferences）<br>
+          多马甲场景：建立 Product 层（config / string / resource / ad_unit_id）
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#e3f2fd;--fn-badge-color:#0d47a1;">开发</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <!-- 阶段三：打包签名 -->
+    <div class="fstage" style="--stage-color:#0f9d58;--stage-bg:#e8f5e9;">
+      <div class="fstage-label" style="color:#0f9d58;">阶段三</div>
+      <div class="fstage-line"></div>
+      <div class="fstage-label" style="color:#0f9d58;">打包 &amp; 签名配置（Android / iOS 分叉）</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode-split">
+      <div class="fnode-lane android">
+        <div class="lane-title">🤖 Android</div>
+        ① 生成 <b>Keystore</b>（keytool）<br>
+        ② 配置 <b>key.properties</b> 和 signingConfig<br>
+        ③ <b>build.gradle</b>：applicationId、versionName、signingConfig<br>
+        ④ <code>flutter build appbundle --flavor xxx --release</code><br>
+        ⑤ keytool 验证 AAB 签名 SHA1
+      </div>
+      <div class="fnode-lane ios">
+        <div class="lane-title">🍎 iOS</div>
+        ① Apple 后台申请 <b>Bundle ID</b><br>
+        ② 生成 <b>Distribution Certificate</b>（.p12）<br>
+        ③ 创建 <b>Provisioning Profile</b>（App Store）<br>
+        ④ Xcode 配置 Scheme / Build Configuration<br>
+        ⑤ <code>xcodebuild archive</code> 或 Xcode → Archive
+      </div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <!-- 阶段四：后端 -->
+    <div class="fstage" style="--stage-color:#f4a400;--stage-bg:#fff8e1;">
+      <div class="fstage-label" style="color:#f4a400;">阶段四</div>
+      <div class="fstage-line"></div>
+      <div class="fstage-label" style="color:#f4a400;">后端 &amp; 云服务配置</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-c">
+      <div class="fnode-ico">🔥</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Firebase 项目配置（第一次）</div>
+        <div class="fnode-detail">
+          创建 Firebase 项目 → 注册 App（Bundle ID / 包名）<br>
+          添加 <b>debug SHA1 + release keystore SHA1</b> → 下载 <b>google-services.json</b>（第一版）<br>
+          开启 Authentication（手机号 + Google + Apple）· 配置 Remote Config · 开启 Crashlytics
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#fff8e1;--fn-badge-color:#856404;">Firebase</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-c">
+      <div class="fnode-ico">🔔</div>
+      <div class="fnode-body">
+        <div class="fnode-title">推送通知配置</div>
+        <div class="fnode-detail">
+          Android：Firebase Cloud Messaging 开启，App 注册 Device Token<br>
+          iOS：生成 <b>APNs Key（.p8）</b>上传到 Firebase · Runner.entitlements 开启推送能力
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#fff8e1;--fn-badge-color:#856404;">推送</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <!-- 阶段五：内测 -->
+    <div class="fstage" style="--stage-color:#5c6bc0;--stage-bg:#ede7f6;">
+      <div class="fstage-label" style="color:#5c6bc0;">阶段五</div>
+      <div class="fstage-line"></div>
+      <div class="fstage-label" style="color:#5c6bc0;">内测验证</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode-split">
+      <div class="fnode-lane android">
+        <div class="lane-title">🤖 Android</div>
+        • APK 直接安装到测试机<br>
+        • 或上传 AAB 到 Play Console<b>内部测试</b>轨道<br>
+        • 测试：登录、通话、广告、内购、崩溃监控
+      </div>
+      <div class="fnode-lane ios">
+        <div class="lane-title">🍎 iOS</div>
+        • 上传到 App Store Connect<br>
+        • <b>TestFlight 内部测试</b>（25人内，无需审核）<br>
+        • 测试：Apple 登录、APNs 推送、内购
+      </div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <!-- 阶段六：发布准备 -->
+    <div class="fstage" style="--stage-color:#37474f;--stage-bg:#eceff1;">
+      <div class="fstage-label" style="color:#37474f;">阶段六</div>
+      <div class="fstage-line"></div>
+      <div class="fstage-label" style="color:#37474f;">发布前准备</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode" style="--fn-bg:#eceff1;--fn-border:#607d8b;">
+      <div class="fnode-ico">📋</div>
+      <div class="fnode-body">
+        <div class="fnode-title">商店物料 &amp; 合规</div>
+        <div class="fnode-detail">
+          ✦ 撰写<b>隐私政策</b>并托管到可访问的 URL<br>
+          ✦ 填写 Play <b>数据安全</b>表单 / iOS <b>隐私标签</b>（含第三方 SDK 数据）<br>
+          ✦ 截图（各机型）、App 描述、关键词、分级问卷<br>
+          ✦ Play / ASC 后台创建<b>内购商品</b> · 申请<b>广告位 ID</b>
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#eceff1;--fn-badge-color:#37474f;">合规</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <!-- 阶段七：首次上传 & Play SHA-1 -->
+    <div class="fstage" style="--stage-color:#db4437;--stage-bg:#fce4ec;">
+      <div class="fstage-label" style="color:#db4437;">阶段七</div>
+      <div class="fstage-line"></div>
+      <div class="fstage-label" style="color:#db4437;">首次上传 &amp; Firebase 二次更新</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-d">
+      <div class="fnode-ico">⬆️</div>
+      <div class="fnode-body">
+        <div class="fnode-title">上传 AAB 到 Google Play</div>
+        <div class="fnode-detail">
+          上传到内部测试轨道 → Play 生成 <b>Play App Signing SHA-1</b>（第三个 SHA1）<br>
+          在「设置 → App Signing」页面复制 Play SHA-1
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#fce4ec;--fn-badge-color:#880e4f;">Play</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode warn">
+      <div class="fnode-ico">🔥</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Firebase 更新（第二次）— 关键步骤</div>
+        <div class="fnode-detail">
+          将 Play SHA-1 添加到 Firebase 项目 → <b>重新下载 google-services.json</b><br>
+          替换项目中的文件 → 重新打包 → 验证 Google 登录在正式包中可用
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#fff3e0;--fn-badge-color:#e65100;">⚠️ 必须</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <!-- 阶段八：提交审核 -->
+    <div class="fstage" style="--stage-color:#7b1fa2;--stage-bg:#f3e5f5;">
+      <div class="fstage-label" style="color:#7b1fa2;">阶段八</div>
+      <div class="fstage-line"></div>
+      <div class="fstage-label" style="color:#7b1fa2;">提交审核</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode-split">
+      <div class="fnode-lane android">
+        <div class="lane-title">🤖 Android — Google Play</div>
+        ① 将版本从内部测试提交到<b>正式发布</b>轨道<br>
+        ② 审核 1–3 天（新账号可能更长）<br>
+        ③ 审核通过 → 选择自动或手动发布
+      </div>
+      <div class="fnode-lane ios">
+        <div class="lane-title">🍎 iOS — App Store</div>
+        ① Archive → Distribute → App Store Connect<br>
+        ② 选择版本 → 点击「提交以供审核」<br>
+        ③ 审核 1–3 天，可在 Resolution Center 沟通被拒问题
+      </div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode done"><div class="fnode-title">✅ 审核通过 · 正式上线</div></div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <!-- 阶段九：上线后 -->
+    <div class="fstage" style="--stage-color:#0f9d58;--stage-bg:#e8f5e9;">
+      <div class="fstage-label" style="color:#0f9d58;">阶段九</div>
+      <div class="fstage-line"></div>
+      <div class="fstage-label" style="color:#0f9d58;">持续运营 &amp; 迭代</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-a">
+      <div class="fnode-ico">📊</div>
+      <div class="fnode-body">
+        <div class="fnode-title">监控 &amp; 运营</div>
+        <div class="fnode-detail">
+          Crashlytics 崩溃监控 · Firebase Analytics 用户行为 · 广告收入看板<br>
+          Remote Config 动态调整配置（无需发版）· 用户评价回复
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#d4edda;--fn-badge-color:#155724;">运营</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-a">
+      <div class="fnode-ico">🤖</div>
+      <div class="fnode-body">
+        <div class="fnode-title">CI/CD 自动化 &amp; 版本迭代</div>
+        <div class="fnode-detail">
+          配置 Fastlane + GitLab CI / Codemagic，代码合并自动触发打包上传<br>
+          versionCode 统一递增 · 多马甲按 flavor 批量构建 · 内购商品更新 · 新功能发版
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#d4edda;--fn-badge-color:#155724;">迭代</div>
+    </div>
+
+  </div>
+</div>
+
+
+<div class="flow-section" style="margin-top:40px;">
+  <h2>📊 新建马甲包 — 完整操作流程</h2>
+  <p class="flow-sub">以 call360 为例，展示从零到可上架 AAB 包的每一个步骤</p>
+  <div class="flow">
+
+    <div class="fnode start"><div class="fnode-title">🚀 需求确认：新建马甲包</div></div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-a">
+      <div class="fnode-ico">📋</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Step 1 — 收集资源（前置，避免返工）</div>
+        <div class="fnode-detail">
+          <b>设计：</b>图标 5 张、主题色值、UI 图片全套<br>
+          <b>运营：</b>包名、App 名、jcAppKey、广告 ID、内购商品 ID<br>
+          <b>自建：</b>在 Firebase Console 新建项目，下载 google-services.json
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#d4edda;--fn-badge-color:#155724;">先决条件</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-a">
+      <div class="fnode-ico">🤖</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Step 2 — 创建 Android Flavor 目录</div>
+        <div class="fnode-detail">复制已有马甲目录 → 重命名为 <b>马甲名</b>，放入 google-services.json、图标（mipmap）、strings.xml、colors.xml</div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#d4edda;--fn-badge-color:#155724;">Android</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode warn">
+      <div class="fnode-ico">⚠️</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Step 3 — 确认签名（易错！必须三步走）</div>
+        <div class="fnode-detail">
+          ① 读 <b>key.properties</b>，确认 storeFile / jcStoreFile 分别是哪个文件<br>
+          ② 用 keytool 查两个 keystore 的 SHA1<br>
+          ③ 与 google-services.json 的 certificate_hash 比对 → 决定用 release 还是 jcRelease
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#fff3e0;--fn-badge-color:#e65100;">⚠️ 易错</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-a">
+      <div class="fnode-ico">⚙️</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Step 4 — 配置 build.gradle</div>
+        <div class="fnode-detail">productFlavors 新增：applicationId、versionName、manifestPlaceholders（app_name、google_ad_id）<br>buildTypes.release 中绑定 signingConfig</div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#d4edda;--fn-badge-color:#155724;">Android</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-e">
+      <div class="fnode-ico">🔐</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Step 5 — 更新 Credential 私有插件</div>
+        <div class="fnode-detail">在 credential_dev 仓库的 getAllKeys() 中新增 assetsPrefix 的 case，填入 jcAppKey 和 publicKey</div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#f3e5f5;--fn-badge-color:#4a148c;">私有插件</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-b">
+      <div class="fnode-ico">🎯</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Step 6 — Flutter Product 层配置（4 个文件）</div>
+        <div class="fnode-detail">
+          <b>product_config.dart</b>：isXxx 判断 + assetsPrefixXxx + 接入三个分发函数<br>
+          <b>product_string.dart</b>：XxxLocalStrings（URL、商品 ID）<br>
+          <b>product_resource.dart</b>：XxxColorsConstants（主题色）<br>
+          <b>product_ad_unit_id.dart</b>：_XxxAdUnitIDs（广告位 ID）
+        </div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#e3f2fd;--fn-badge-color:#0d47a1;">Flutter</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-b">
+      <div class="fnode-ico">🖼️</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Step 7 — 图片资源 + pubspec.yaml</div>
+        <div class="fnode-detail">创建 assets/images/马甲名/，先复制同类马甲图片占位；pubspec.yaml 新增路径；设计出图后压缩替换</div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#e3f2fd;--fn-badge-color:#0d47a1;">Flutter</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-c">
+      <div class="fnode-ico">📦</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Step 8 — 打第一个 AAB 包并验证签名</div>
+        <div class="fnode-detail"><b>flutter build appbundle --flavor 马甲名 --release</b><br>用 keytool -printcert -jarfile app.aab 验证 SHA1 与 google-services.json 一致</div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#fff8e1;--fn-badge-color:#856404;">构建</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-d">
+      <div class="fnode-ico">🛒</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Step 9 — Google Play 后台配置</div>
+        <div class="fnode-detail">上传 AAB → 获取 Play App Signing SHA-1 → 创建服务账号 → 获取 publicKey → 授权财务权限</div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#fce4ec;--fn-badge-color:#880e4f;">Google Play</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-d">
+      <div class="fnode-ico">🔥</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Step 10 — Firebase 完善（添加 Play SHA-1）</div>
+        <div class="fnode-detail">将 Play 签名 SHA-1 添加到 Firebase 项目设置 → 重新下载 google-services.json → 替换项目文件</div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#fce4ec;--fn-badge-color:#880e4f;">Firebase</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode phase-c">
+      <div class="fnode-ico">🎁</div>
+      <div class="fnode-body">
+        <div class="fnode-title">Step 11 — 最终打包 &amp; 验收测试</div>
+        <div class="fnode-detail">重新打包 → 测试：Google 登录正常、jcAppKey 无报错、广告加载正常、内购调起正常</div>
+      </div>
+      <div class="fnode-badge" style="--fn-badge-bg:#fff8e1;--fn-badge-color:#856404;">验收</div>
+    </div>
+    <div class="farrow-wrap"><div class="farrow"></div></div>
+
+    <div class="fnode done"><div class="fnode-title">✅ 提交代码 · 正式发布</div></div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     验收清单
+═══════════════════════════════════════════ -->
+<div class="checklist-wrap">
+  <h2>✅ 新建马甲包验收清单</h2>
+
+  <div class="cl-section">
+    <h4>Android 层</h4>
+    <div class="cl-grid">
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">Flavor 目录已创建<small>android/app/src/马甲名/</small></div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">google-services.json 已放入对应目录</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">图标资源（mipmap）已放入</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">build.gradle productFlavors 已添加</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">key.properties 已确认签名映射<small>storeFile vs jcStoreFile</small></div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">signingConfig 已绑定（release / jcRelease）</div></div>
+    </div>
+  </div>
+
+  <div class="cl-section">
+    <h4>Flutter 层</h4>
+    <div class="cl-grid">
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">product_config.dart：isXxx + prefix + 分发函数</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">product_string.dart：XxxLocalStrings 类</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">product_resource.dart：XxxColorsConstants 类</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">product_ad_unit_id.dart：_XxxAdUnitIDs 类 + 分发函数</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">pubspec.yaml：assets/images/马甲名/ 已声明</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">flutter analyze lib/product/ 无 error</div></div>
+    </div>
+  </div>
+
+  <div class="cl-section">
+    <h4>第三方服务</h4>
+    <div class="cl-grid">
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">Credential 插件已添加 jcAppKey &amp; publicKey</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">Firebase Authentication 已开启手机 + Google</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">Firebase Remote Config routerUrl 已按国家配置</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">Firebase Dynamic Links 已配置下载链接</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">Play 服务账号已创建并授权，JSON 已发后端</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">Play SHA-1 已同步到 Firebase，json 已二次更新</div></div>
+    </div>
+  </div>
+
+  <div class="cl-section">
+    <h4>验证</h4>
+    <div class="cl-grid">
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">keytool 验证 AAB 签名 SHA1 与 Firebase 一致</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">无 jcAppKey empty 报错</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">Google 登录正常</div></div>
+      <div class="cl-item"><div class="cl-box"></div><div class="cl-text">广告加载正常（至少 Admob 有填充）</div></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<footer>从 0 到 1 上线一个 App — 完整知识地图 &nbsp;·&nbsp; 整理于 2026-05</footer>
+<script>
+(function () {
+  const sidebar  = document.getElementById('toc-sidebar');
+  const toggle   = document.getElementById('toc-toggle');
+  const nav      = document.getElementById('toc-nav');
+
+  /* ── 1. Build navigation from DOM ── */
+  const phases = Array.from(document.querySelectorAll('.phase'));
+
+  phases.forEach((phase, idx) => {
+    const titleEl = phase.querySelector('.phase-title');
+    if (!titleEl) return;
+
+    // Assign ID to phase element
+    const phaseId = 'phase-' + (idx + 1);
+    phase.id = phaseId;
+
+    // Collect kcard elements until next phase
+    const cards = [];
+    let el = phase.nextElementSibling;
+    const nextPhase = phases[idx + 1];
+    while (el && el !== nextPhase) {
+      if (el.classList.contains('kcard')) cards.push(el);
+      el = el.nextElementSibling;
+    }
+
+    // Assign IDs to cards
+    cards.forEach((card, ci) => {
+      if (!card.id) card.id = 'card-' + (idx + 1) + '-' + ci;
+    });
+
+    // Phase row
+    const row = document.createElement('div');
+    row.className = 'toc-phase-row';
+    row.dataset.phaseId = phaseId;
+
+    const phaseLink = document.createElement('a');
+    phaseLink.href = '#' + phaseId;
+    phaseLink.className = 'toc-phase-link';
+    phaseLink.innerHTML =
+      '<span class="toc-num">' + (idx + 1) + '</span>' +
+      '<span>' + titleEl.textContent.trim() + '</span>';
+
+    row.appendChild(phaseLink);
+
+    // Expand button (only if there are sub-cards)
+    const cardList = document.createElement('div');
+    cardList.className = 'toc-cards';
+
+    if (cards.length > 0) {
+      const expBtn = document.createElement('button');
+      expBtn.className = 'toc-expand';
+      expBtn.title = '展开/收起';
+      expBtn.textContent = '▶';
+
+      expBtn.addEventListener('click', () => {
+        cardList.classList.toggle('open');
+        expBtn.classList.toggle('open');
+      });
+      row.appendChild(expBtn);
+
+      cards.forEach(card => {
+        const h3 = card.querySelector('h3');
+        if (!h3) return;
+        // Shorten text: strip emoji-like chars, keep first ~22 chars
+        const rawText = h3.textContent.replace(/[^一-龥a-zA-Z0-9\s\/\-\(\)（）]/g, '').trim();
+        const shortText = rawText.length > 22 ? rawText.substring(0, 22) + '…' : rawText;
+
+        const cardLink = document.createElement('a');
+        cardLink.href = '#' + card.id;
+        cardLink.className = 'toc-card-link';
+        cardLink.textContent = shortText;
+        cardList.appendChild(cardLink);
+      });
+    }
+
+    nav.appendChild(row);
+    if (cards.length > 0) nav.appendChild(cardList);
+  });
+
+  // Extra links: flowcharts & checklist
+  const divider = document.createElement('div');
+  divider.className = 'toc-divider';
+  nav.appendChild(divider);
+
+  const extras = [
+    { sel: '.flow-section', label: '🗺️ 完整流程图', idx: 0 },
+    { sel: '.flow-section', label: '📊 新建马甲包流程', idx: 1 },
+    { sel: '.checklist-wrap', label: '✅ 验收清单', idx: 0 },
+  ];
+  extras.forEach(({ sel, label, idx: eIdx }) => {
+    const els = document.querySelectorAll(sel);
+    const target = els[eIdx];
+    if (!target) return;
+    if (!target.id) target.id = sel.replace(/[^a-z]/g, '') + '-' + eIdx;
+    const a = document.createElement('a');
+    a.href = '#' + target.id;
+    a.className = 'toc-extra';
+    a.textContent = label;
+    nav.appendChild(a);
+  });
+
+  /* ── 2. Toggle sidebar ── */
+  toggle.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    toggle.classList.toggle('open');
+  });
+
+  // Close on backdrop click (outside sidebar)
+  document.addEventListener('click', (e) => {
+    if (sidebar.classList.contains('open') &&
+        !sidebar.contains(e.target) &&
+        e.target !== toggle) {
+      sidebar.classList.remove('open');
+      toggle.classList.remove('open');
+    }
+  });
+
+  /* ── 3. Smooth scroll ── */
+  nav.addEventListener('click', (e) => {
+    const a = e.target.closest('a');
+    if (!a) return;
+    e.preventDefault();
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Auto-expand card list for this phase when clicking a card link
+      if (a.classList.contains('toc-card-link')) {
+        const cardList = a.closest('.toc-cards');
+        if (cardList && !cardList.classList.contains('open')) {
+          cardList.classList.add('open');
+          const btn = cardList.previousElementSibling?.querySelector('.toc-expand');
+          if (btn) btn.classList.add('open');
+        }
+      }
+    }
+  });
+
+  /* ── 4. Scroll spy (IntersectionObserver) ── */
+  const allTargets = Array.from(document.querySelectorAll('.phase, .kcard, .flow-section, .checklist-wrap'));
+  const allLinks   = () => nav.querySelectorAll('a');
+
+  let activeId = null;
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        activeId = entry.target.id;
+        updateActive();
+      }
+    });
+  }, { threshold: 0, rootMargin: '-8% 0px -75% 0px' });
+
+  allTargets.forEach(t => { if (t.id) observer.observe(t); });
+
+  function updateActive() {
+    allLinks().forEach(a => a.classList.remove('active'));
+    if (!activeId) return;
+
+    const activeLink = nav.querySelector('a[href="#' + activeId + '"]');
+    if (activeLink) {
+      activeLink.classList.add('active');
+      // Also mark parent phase row active
+      const cardList = activeLink.closest('.toc-cards');
+      if (cardList) {
+        const prevRow = cardList.previousElementSibling;
+        if (prevRow && prevRow.classList.contains('toc-phase-row')) {
+          const phaseLink = prevRow.querySelector('.toc-phase-link');
+          if (phaseLink) phaseLink.classList.add('active');
+        }
+      }
+    }
+
+    // Mark phase row active if a phase anchor is active
+    nav.querySelectorAll('.toc-phase-row').forEach(row => {
+      const link = row.querySelector('.toc-phase-link');
+      if (link && link.getAttribute('href') === '#' + activeId) {
+        row.classList.add('active');
+      } else {
+        row.classList.remove('active');
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>

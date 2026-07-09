@@ -169,7 +169,7 @@ td strong{color:var(--text)}
 <aside class="sidebar">
   <div class="sb-head">
     <h2>Flutter 核心原理</h2>
-    <p>14 章 · 深度解析</p>
+    <p>17 章 · 深度解析</p>
   </div>
   <ul class="nav" id="nav">
     <li data-ch="ch0"><a href="#ch0"><span class="nn">0</span>架构总览 · 两大基石</a></li>
@@ -186,6 +186,9 @@ td strong{color:var(--text)}
     <li data-ch="ch11"><a href="#ch11"><span class="nn">11</span>状态管理对比</a></li>
     <li data-ch="ch12"><a href="#ch12"><span class="nn">12</span>实战案例复盘</a></li>
     <li data-ch="ch13"><a href="#ch13"><span class="nn">13</span>动画系统</a></li>
+    <li data-ch="ch14"><a href="#ch14"><span class="nn">14</span>Layer 树 &amp; Composite</a></li>
+    <li data-ch="ch15"><a href="#ch15"><span class="nn">15</span>RenderObject 深入</a></li>
+    <li data-ch="ch16"><a href="#ch16"><span class="nn">16</span>性能优化实践</a></li>
   </ul>
 </aside>
 
@@ -952,6 +955,159 @@ class _PlayerWidgetState extends State<PlayerWidget> {
       彻底销毁旧 Element + RenderObject，重新走完整的创建生命周期。
       这也是 Key 能"保留 State"的底层原因——相同 Key 让 canUpdate 返回 true，Element 被复用，State 随之保留。
     </div>
+  </div>
+
+  <div class="card">
+    <h3>源码级完整流程：从 setState() 到像素更新</h3>
+    <p style="color:var(--muted);font-size:13.5px;margin-bottom:14px;">每一步都对应 Flutter framework 里真实存在的方法，以下源码均来自 <code>packages/flutter/lib/src/widgets/framework.dart</code>，已精简非核心代码。</p>
+
+    <div class="card" style="background:var(--bg-deep)">
+      <h3>第一步：setState() — 标记 dirty，预约下一帧</h3>
+      <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// State.setState()（framework.dart）
+void setState(VoidCallback fn) {
+  fn();                        // ① 执行你传入的闭包，修改数据
+  _element!.markNeedsBuild();  // ② 通知对应的 Element：你脏了
+}
+
+// Element.markNeedsBuild()
+void markNeedsBuild() {
+  _dirty = true;                    // 打上 dirty 标记
+  owner!.scheduleBuildFor(this);    // 把自己加入 BuildOwner 的 dirty 列表
+  // scheduleBuildFor 内部会调用 SchedulerBinding.scheduleFrame()
+  // 向系统预约下一个 vsync 信号
+}</code></pre></div>
+      <div class="hbox info">此时什么都没有重建，只是打了个标记。主线程继续处理事件循环里的其他事情。</div>
+    </div>
+
+    <div class="card" style="background:var(--bg-deep)">
+      <h3>第二步：BuildOwner.buildScope() — vsync 到来，统一重建</h3>
+      <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// BuildOwner.buildScope()（framework.dart）
+// vsync 信号到来后，WidgetsBinding 调用这个方法
+void buildScope(Element context, [VoidCallback? callback]) {
+  // _dirtyElements 是所有被 markNeedsBuild() 标记过的 Element 列表
+  // 按在树中的深度排序（父节点先重建）
+  _dirtyElements.sort(Element._sort);
+
+  int index = 0;
+  while (index < _dirtyElements.length) {
+    final Element element = _dirtyElements[index];
+    element.rebuild();   // 依次触发每个脏 Element 重建
+    index++;
+  }
+  _dirtyElements.clear(); // 重建完毕，清空 dirty 列表
+}</code></pre></div>
+      <div class="hbox info">同一帧内无论调用多少次 setState()，都只是往 _dirtyElements 里加记录。buildScope() 只跑一次，批量处理所有脏节点——这就是多次 setState() 只渲染一次的根本原因。</div>
+    </div>
+
+    <div class="card" style="background:var(--bg-deep)">
+      <h3>第三步：State.build() — 生成新 Widget 子树</h3>
+      <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// StatefulElement.performRebuild()（framework.dart）
+void performRebuild() {
+  // 调用你写的 build() 方法，得到一棵新的 Widget 子树
+  // Widget 是纯配置对象，new 一个几乎没有成本
+  final Widget built = state.build(this);
+
+  // 拿到新 Widget 子树后，进入 diff 阶段
+  _child = updateChild(_child, built, slot);
+}</code></pre></div>
+      <div class="hbox info">build() 返回的是一棵全新的 Widget 树，但这只是"配置描述"，不是真正的 UI。真正决定要不要更新 UI 的是下一步的 diff。</div>
+    </div>
+
+    <div class="card" style="background:var(--bg-deep)">
+      <h3>第四步：Element.updateChild() — diff 核心</h3>
+      <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// Element.updateChild()（framework.dart）
+// 对新 Widget 子树里的每个节点，和旧 Element 树的对应位置做比较
+Element? updateChild(Element? child, Widget? newWidget, Object? newSlot) {
+
+  // 情况一：新位置没有 Widget → 直接销毁旧 Element
+  if (newWidget == null) {
+    if (child != null) deactivateChild(child);
+    return null;
+  }
+
+  if (child != null) {
+    // 情况二：新旧 Widget 是同一个对象（const Widget 的引用相等）
+    // → 完全跳过，什么都不做，这是 const 优化的底层原理
+    if (child.widget == newWidget) {
+      return child;
+    }
+
+    // 情况三：canUpdate 判断能否复用这个 Element
+    if (Widget.canUpdate(child.widget, newWidget)) {
+      child.update(newWidget); // 复用，只更新内容
+      return child;
+    }
+
+    // 情况四：canUpdate 返回 false → 销毁旧 Element，重新创建
+    deactivateChild(child); // 触发 deactivate() → dispose()
+  }
+
+  // 创建全新的 Element（触发 createElement → mount → initState → build）
+  return inflateWidget(newWidget, newSlot);
+}
+
+// Widget.canUpdate()（framework.dart）
+// 这就是整个 diff 算法的核心判断，只有这两行
+static bool canUpdate(Widget oldWidget, Widget newWidget) {
+  return oldWidget.runtimeType == newWidget.runtimeType
+      && oldWidget.key == newWidget.key;
+}</code></pre></div>
+      <div class="hbox info"><strong>Flutter diff 的本质</strong>：不是全树对比，而是同位置逐个判断。判断条件极其简单——只看 runtimeType 和 key，时间复杂度 O(n)。官方称之为 "linear reconciliation"（线性调和）。</div>
+    </div>
+
+    <div class="card" style="background:var(--bg-deep)">
+      <h3>第五步：canUpdate = true 时 — 复用 Element，更新 RenderObject</h3>
+      <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// StatefulElement.update()（framework.dart）
+// canUpdate 返回 true，走这条路
+void update(StatefulWidget newWidget) {
+  super.update(newWidget);
+  final StatefulWidget oldWidget = state._widget!;
+  state._widget = newWidget;          // State 里的 widget 引用更新为新 Widget
+  state.didUpdateWidget(oldWidget);   // 通知 State：你的 widget 配置换了
+  rebuild();                          // 重新调用 State.build()
+}
+
+// RenderObjectElement.update()（framework.dart）
+// 对于 RenderObjectWidget（如 Text、Container），走这条路
+void update(covariant RenderObjectWidget newWidget) {
+  super.update(newWidget);
+  // 把新 Widget 的配置同步到已有的 RenderObject
+  // 这里会调用你在 LeafRenderObjectWidget 里写的 updateRenderObject()
+  newWidget.updateRenderObject(this, renderObject);
+  // updateRenderObject 内部根据哪些属性变了，调用对应的 mark 方法：
+  // 只有视觉属性变了 → markNeedsPaint()   （跳过 Layout，最轻）
+  // 尺寸相关属性变了 → markNeedsLayout()  （重新 Layout + Paint）
+}</code></pre></div>
+      <div class="hbox ok"><strong>关键结论：</strong>canUpdate = true 时，RenderObject 不会被销毁重建，只是调用 updateRenderObject() 更新属性。RenderObject 决定自己需要重新 Layout 还是只需要重新 Paint，精确控制开销。</div>
+    </div>
+
+    <div class="card" style="background:var(--bg-deep)">
+      <h3>第六步：canUpdate = false 时 — 完整生命周期</h3>
+      <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// Element.deactivateChild()（framework.dart）
+// canUpdate 返回 false，旧 Element 走销毁流程
+void deactivateChild(Element child) {
+  child.deactivate();   // 暂时移出树（还没彻底销毁）
+  owner!.unmountAll();  // 彻底销毁
+  // StatefulElement.unmount() 内部调用 state.dispose()
+}
+
+// Element.inflateWidget()（framework.dart）
+// 然后用新 Widget 创建全新的 Element
+Element inflateWidget(Widget newWidget, Object? newSlot) {
+  final Element newChild = newWidget.createElement(); // Widget 创建对应 Element
+  newChild.mount(this, newSlot);  // 挂载到 Element 树
+  // mount 内部：
+  //   StatefulElement → createState() → initState() → didChangeDependencies() → build()
+  //   RenderObjectElement → createRenderObject() → 创建全新 RenderObject
+  return newChild;
+}</code></pre></div>
+      <div class="hbox warn"><strong>代价：</strong>销毁+重建意味着 State 完全重置，RenderObject 重新创建，走完整生命周期。这就是为什么要用 Key 保证 canUpdate 返回 true——避免不必要的完整重建。</div>
+    </div>
+
+    <p style="color:var(--muted);font-size:13px;margin-top:14px;padding:0 4px">
+      完整源码可在 Flutter 仓库查阅：
+      <a href="https://github.com/flutter/flutter/blob/master/packages/flutter/lib/src/widgets/framework.dart" target="_blank" style="color:var(--blue)">packages/flutter/lib/src/widgets/framework.dart</a>
+    </p>
   </div>
 
   <div class="card">
@@ -1810,6 +1966,130 @@ UI 帧渲染本身也是一个 Event</div>
   </div>
 
   <div class="card">
+    <h3>Future 完整入队时机</h3>
+    <p style="color:var(--muted);font-size:13.5px;margin-bottom:12px">不同写法的 Future，回调入队的时机和目标队列不同。这是理解事件循环的基础。</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>写法</th><th>回调何时入队</th><th>进哪个队列</th></tr>
+        <tr class="tr-ok"><td><code>Future(() => ...)</code></td><td>创建时<strong>立刻</strong>入队</td><td>Event Queue</td></tr>
+        <tr class="tr-ok"><td><code>Future.microtask(() => ...)</code></td><td>创建时<strong>立刻</strong>入队</td><td>MicroTask Queue</td></tr>
+        <tr class="tr-ok"><td><code>Future.value(x).then(...)</code></td><td>创建时<strong>立刻</strong>入队</td><td>MicroTask Queue</td></tr>
+        <tr><td><code>Future.delayed(t, ...)</code></td><td>t 时间后 OS 计时完成才入队</td><td>Event Queue</td></tr>
+        <tr><td><code>http.get().then(...)</code></td><td>网络响应回来后才入队</td><td>Event Queue</td></tr>
+        <tr><td><code>File.readAsString().then(...)</code></td><td>I/O 完成后才入队</td><td>Event Queue</td></tr>
+      </table>
+    </div>
+
+    <p style="color:var(--muted);font-size:13.5px;margin:12px 0 8px"><strong><code>Future(() => ...)</code> 是最基础的用法</strong>——把一段代码推迟到当前同步代码跑完之后执行，没有任何 I/O，没有等待，创建时立刻入队：</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">void main() {
+  Future(() => print('B')); // 立刻把回调放入 Event Queue
+  print('A');               // 同步代码先执行
+}
+// 输出：A → B
+// 原因：print('A') 是同步代码先跑，Event Queue 里的回调等同步跑完才取出执行</code></pre></div>
+
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// MicroTask 优先级高于 Event，全部清空才处理 Event
+void main() {
+  Future(() => print('Event'));             // → Event Queue
+  Future.microtask(() => print('Micro'));   // → MicroTask Queue
+  print('Sync');                            // 同步
+}
+// 输出：Sync → Micro → Event</code></pre></div>
+
+    <div class="hbox info">
+      <strong>两类 Future 的本质区别：</strong><br>
+      立刻入队的（<code>Future()</code> / <code>Future.microtask()</code>）：没有外部等待，只是把代码推迟执行，回调已经存在，直接排队。<br>
+      完成后入队的（<code>Future.delayed</code> / I/O）：回调要等外部事件（计时器、OS I/O）触发后才放入队列，放入前回调"悬挂"在 .then() 里等待。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>async / await 的本质：三层实现</h3>
+    <p style="color:var(--muted);font-size:13.5px;margin-bottom:14px">官方文档原话：<em>"An async function runs synchronously until the first await keyword."</em>（async 函数在遇到第一个 await 之前，是同步执行的。）</p>
+
+    <div class="card" style="background:var(--bg-deep)">
+      <h3>第一层：编译器语法糖</h3>
+      <p><code>async/await</code> 是编译器把代码切成回调片段的语法糖。遇到 <code>await</code>，后面的代码被打包成闭包注册到 <code>.then()</code>，当前函数立刻返回。</p>
+      <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// 你写的
+Future&lt;void&gt; fetchData() async {
+  print('1');                              // await 前，同步执行
+  await Future.delayed(Duration(seconds: 2));
+  print('2');                              // 被打包成闭包
+}
+
+void main() {
+  fetchData();   // 调用后：print('1') 执行，遇到 await 立刻返回
+  print('3');    // main() 继续执行
+}
+// 输出：1 → 3 → （2秒后）2</code></pre></div>
+      <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// 编译器实际展开成
+Future&lt;void&gt; fetchData() {
+  print('1');                   // 同步，立刻执行
+  return Future.delayed(Duration(seconds: 2))
+    .then((_) {
+      print('2');               // 被打包成闭包，注册到 .then()
+    });                         // 函数在这里返回，不等待
+}</code></pre></div>
+    </div>
+
+    <div class="card" style="background:var(--bg-deep)">
+      <h3>第二层：回调的两个时机（容易混淆的关键点）</h3>
+      <p>很多人认为"遇到 <code>await</code> 就把回调放入事件队列"——这是不准确的。</p>
+      <div class="tbl-wrap">
+        <table>
+          <tr><th>时机</th><th>发生了什么</th></tr>
+          <tr><td><strong>遇到 await 那一刻</strong></td><td>闭包<strong>注册</strong>到 .then()，操作开始（OS 开始计时/发包），当前函数返回。<br>闭包此时<strong>还没有进入</strong>事件队列。</td></tr>
+          <tr><td><strong>操作完成那一刻</strong></td><td>OS 完成 I/O / 计时器到期 / 计算跑完，<strong>这时</strong>才把闭包放入 Event Queue 或 MicroTask Queue。</td></tr>
+          <tr><td><strong>事件循环取到那一刻</strong></td><td>主线程执行这个闭包，<code>await</code> 后面的代码才真正运行。</td></tr>
+        </table>
+      </div>
+      <div class="hbox info">如果"遇到 await 就立刻进队列"，那 <code>Future.delayed(2s)</code> 的回调会立刻被执行，2秒的延迟就失效了。正是因为<strong>完成时才入队</strong>，延迟才有意义。</div>
+
+      <div class="hbox ok" style="margin-top:10px">
+        <strong>官方文档原话</strong>（<a href="https://dart.dev/language/concurrency" target="_blank" style="color:var(--blue)">dart.dev/language/concurrency</a>）：<br><br>
+        <em>"it also tells the event loop to <strong>hold the callback</strong> in the then() clause, <strong>until the HTTP request resolves</strong>"</em><br>
+        → 它同时告诉事件循环<strong>保留</strong>回调，<strong>直到请求完成</strong>。<br><br>
+        <em>"Dart code pauses, while <strong>non-Dart code (file I/O) executes in the Dart runtime or operating system</strong>. Once the operation returns a value, Dart code resumes."</em><br>
+        → Dart 代码暂停，<strong>非 Dart 代码（I/O）由操作系统独立执行</strong>。操作完成后，Dart 代码才继续。
+      </div>
+
+      <p style="color:var(--muted);font-size:13px;margin-top:12px"><strong>为什么操作完成后不直接执行，而是放入队列？</strong><br>
+      因为操作系统完成 I/O 时，主线程不一定空闲——它可能正在执行别的代码。单线程没有"插队"机制，只能把回调放入队列排队，等主线程当前代码跑完，事件循环再取出执行。队列就是主线程"忙"与 OS "完成"之间的缓冲区。</p>
+    </div>
+
+    <div class="card" style="background:var(--bg-deep)">
+      <h3>第三层：谁来触发"把回调放入队列"</h3>
+      <p>这取决于 <code>await</code> 后面的 <code>Future</code> 是怎么产生的：</p>
+      <div class="tbl-wrap">
+        <table>
+          <tr><th>Future 来源</th><th>谁在干活</th><th>主线程状态</th><th>会卡 UI？</th></tr>
+          <tr class="tr-ok"><td>网络请求、文件 I/O、Timer</td><td>操作系统独立完成，完成后通知 Dart 把回调入队</td><td>完全空闲</td><td>不卡</td></tr>
+          <tr class="tr-bad"><td>纯 Dart 计算（for 循环、JSON 解析）</td><td>主线程亲自跑，跑完后把回调入队</td><td>被占满</td><td>卡</td></tr>
+        </table>
+      </div>
+      <div class="hbox warn"><strong>async/await 不创造任何并发</strong>，不把任何东西交给操作系统。交没交给 OS，取决于你调用的底层 API 是什么，和有没有写 async/await 无关。</div>
+      <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// ✅ OS 干活，主线程空闲，不卡 UI
+final response = await http.get(url);
+
+// ❌ 主线程干活，卡 UI（加了 async/await 也没用）
+Future&lt;int&gt; calculate() async {
+  int sum = 0;
+  for (int i = 0; i < 100000000; i++) sum += i; // 主线程跑
+  return sum;
+}
+await calculate(); // 依然卡
+
+// ✅ 正确做法：扔给 Isolate，主线程只等通知
+final sum = await compute(heavyCalc, 100000000);</code></pre></div>
+    </div>
+
+    <div class="hbox ok">
+      <strong>一句话总结：</strong>Dart 的异步本质是——用编译器把代码切成闭包片段，用事件循环决定何时执行每个片段，用 OS 完成真正的 I/O 工作。三层组合让单线程的 Dart 看起来像在"同时做多件事"。
+    </div>
+  </div>
+
+  <div class="card">
     <h3>async context 安全规则（与 Flutter Bug 直接相关）</h3>
     <div class="g2">
       <div class="cmp-box bad">
@@ -1841,12 +2121,17 @@ UI 帧渲染本身也是一个 Event</div>
     <div class="card">
       <h3>Isolate — Dart 并发单元</h3>
       <ul>
-        <li>每个 Isolate 独立内存，<strong>不共享状态</strong>（避免竞态）</li>
-        <li>通过 <code>SendPort</code> / <code>ReceivePort</code> 传递消息（值拷贝）</li>
+        <li>底层对应一个操作系统线程，但比线程多一个约束：<strong>独立内存堆，互相不共享任何数据</strong></li>
+        <li>不共享内存 → 不需要锁 → 不会有竞态条件</li>
+        <li>通过 <code>SendPort</code> / <code>ReceivePort</code> 传递消息（<strong>值拷贝，不是引用</strong>）</li>
         <li>UI 线程是主 Isolate，耗时操作（图片解码、JSON 解析）放子 Isolate</li>
         <li><code>compute(func, message)</code> → Flutter 封装，一次性子 Isolate</li>
         <li><code>Isolate.spawn()</code> → 长生命周期，双向通信</li>
       </ul>
+      <div class="hbox info" style="margin-top:10px">
+        <strong>每个 Isolate 都有完整的事件循环</strong>（MicroTask Queue + Event Queue）。
+        区别只有一个：子 Isolate 没有 vsync，因为它不负责 UI。
+      </div>
     </div>
     <div class="card">
       <h3>Platform Channel</h3>
@@ -1857,6 +2142,252 @@ UI 帧渲染本身也是一个 Event</div>
         <li>序列化：<code>StandardMessageCodec</code>（int/double/String/List/Map）</li>
         <li>通信在 Platform Thread（Native）和 UI Thread（Dart）之间异步进行</li>
       </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Isolate vs 普通线程 / compute() 完整流程</h3>
+    <div class="g2">
+      <div class="cmp-box bad">
+        <h4>普通多线程（Java/C++）</h4>
+        <ul>
+          <li>多个线程共享同一块内存</li>
+          <li>需要加锁防止竞态条件</li>
+          <li>锁用错会死锁，用少会数据错乱</li>
+        </ul>
+      </div>
+      <div class="cmp-box ok">
+        <h4>Dart Isolate</h4>
+        <ul>
+          <li>每个 Isolate 有独立内存堆</li>
+          <li>不共享内存 → 不需要锁</li>
+          <li>通信只能靠消息传递（值拷贝）</li>
+        </ul>
+      </div>
+    </div>
+
+    <p style="margin-top:12px;color:var(--muted);font-size:13.5px"><code>compute(fn, data)</code> 的完整执行流程：</p>
+    <div class="flow"><span class="fb">主 Isolate</span>
+  compute(fn, data) 被调用
+  ↓
+  创建子 Isolate（新的 OS 线程 + 独立内存堆）
+  把 data <span class="fo">拷贝一份</span>发给子 Isolate（不是传引用）
+  主线程回到事件循环 → <span class="fg">UI 正常刷新</span>
+
+<span class="fb">子 Isolate</span>（有自己的事件循环，但没有 vsync）
+  收到消息，执行 fn(data)
+  计算完成，把结果<span class="fo">拷贝</span>发回主 Isolate
+  子 Isolate 销毁
+
+<span class="fb">主 Isolate</span>
+  Event Queue 收到结果消息
+  await 恢复，继续执行后续代码</div>
+    <div class="hbox warn">
+      <strong>注意拷贝开销：</strong>两个 Isolate 之间传递的永远是数据的副本。传递一个 100MB 的列表，就要拷贝 100MB。大数据用 <code>compute()</code> 传递本身也有开销，适合计算密集型任务，不适合频繁传递大对象。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>帧与帧之间：事件循环 × vsync 完整连接</h3>
+    <p style="color:var(--muted);font-size:13.5px;margin-bottom:14px;">Ch.6 讲了一帧之内发生什么，Ch.10 讲了事件循环的队列结构。这一节把两者连成一条完整的主线。</p>
+
+    <div class="card" style="background:var(--bg-deep);margin-bottom:0">
+      <h3>setState() 之后发生了什么</h3>
+      <p><code>setState()</code> 本身是同步的，调用完立刻返回，不会触发任何渲染。它只做了三件事：</p>
+      <div class="lc" style="margin:12px 0">
+        <div class="lc-row">
+          <div class="lc-box g">1. 执行闭包</div>
+          <span class="lc-note">运行你传入的函数（如 <code>_count++</code>），修改状态数据</span>
+        </div>
+        <div class="lc-arr">↓</div>
+        <div class="lc-row">
+          <div class="lc-box g">2. markNeedsBuild()</div>
+          <span class="lc-note">把当前 Element 标记为 dirty，加入待重建队列</span>
+        </div>
+        <div class="lc-arr">↓</div>
+        <div class="lc-row">
+          <div class="lc-box g">3. scheduleFrame()</div>
+          <span class="lc-note">向系统预约下一个 vsync 信号，<strong>内部有去重检查</strong>：如果已经预约过则直接返回，因此同一帧内多次调用 <code>setState()</code> 只预约一次 vsync，Build Phase 只执行一次</span>
+        </div>
+      </div>
+      <div class="hbox info"><strong>结论：</strong><code>setState()</code> 调用完之后，Build Phase 并没有立刻开始。程序继续执行后面的同步代码，事件循环继续处理其他事件，直到屏幕硬件发出下一个 vsync 信号，渲染才真正开始。</div>
+    </div>
+
+    <div class="ch-divider" style="margin:18px 0"></div>
+
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Flutter 的完整运行节奏是"事件循环"和"vsync"交替驱动：</p>
+    <div class="flow"><span class="fg">vsync 信号到来</span>
+  ↓
+<span class="fb">帧渲染开始</span>
+Build Phase  → 重建 dirty Element，执行 Widget diff
+Layout Phase → 约束向下，尺寸向上，确定每个节点的位置
+Paint Phase  → 生成绘制指令，构建 Layer 树
+Composite    → Engine 光栅化 Layer 树，输出画面到屏幕
+  ↓
+<span class="fg">帧渲染结束</span>
+  ↓
+<span class="fb">【事件循环接管】</span>
+① 清空 MicroTask Queue
+   └─ await 恢复的回调、Future.then() 回调
+② 取一个 Event Queue 事件执行
+   └─ 用户点击 → onPressed → <span class="fo">setState()</span> → markNeedsBuild() + <span class="fo">scheduleFrame()</span>
+   └─ 网络回调 → 更新数据 → <span class="fo">setState()</span> → scheduleFrame()（已预约则跳过）
+   └─ Timer 触发 → 执行回调
+③ 再次清空 MicroTask Queue → 再取下一个 Event...
+  ↓
+<span class="fg">vsync 信号到来（约 16ms 后）</span>
+  ↓
+<span class="fb">下一帧渲染开始...</span></div>
+
+    <div class="hbox ok" style="margin-top:14px">
+      <strong>一句话总结：</strong>Flutter 的运行本质是两个节奏的叠加——<strong>事件循环</strong>负责驱动状态变化（处理用户输入、网络回调、定时器），<strong>vsync</strong> 负责驱动渲染（每 16ms 把累积的状态变化一次性反映到屏幕上）。两者通过 <code>scheduleFrame()</code> 衔接：状态变了就预约下一帧，vsync 到来时统一渲染。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>完整运行循环图</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:14px">事件循环（左）与渲染管线（右）如何协作，通过 vsync 信号衔接成一个闭环。</p>
+    <div style="overflow-x:auto">
+    <svg viewBox="0 0 900 575" xmlns="http://www.w3.org/2000/svg" style="min-width:600px;width:100%;font-family:-apple-system,'PingFang SC',sans-serif">
+      <defs>
+        <marker id="rl-ab" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><polygon points="0 0,8 4,0 8" fill="#388bfd"/></marker>
+        <marker id="rl-ag" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><polygon points="0 0,8 4,0 8" fill="#3fb950"/></marker>
+        <marker id="rl-ao" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><polygon points="0 0,8 4,0 8" fill="#e3b341"/></marker>
+        <marker id="rl-am" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><polygon points="0 0,8 4,0 8" fill="#57606a"/></marker>
+      </defs>
+
+      <!-- ── 标题 ── -->
+      <text x="450" y="26" text-anchor="middle" font-size="14" font-weight="700" fill="#1f2328">Flutter 完整运行循环：事件循环 × 渲染管线</text>
+
+      <!-- ══════ 左侧：事件循环 ══════ -->
+      <rect x="15" y="40" width="385" height="480" rx="10" fill="rgba(56,139,253,.04)" stroke="#388bfd" stroke-width="1.5"/>
+      <text x="207" y="62" text-anchor="middle" font-size="12" font-weight="700" fill="#388bfd" letter-spacing="2">事 件 循 环</text>
+      <text x="207" y="77" text-anchor="middle" font-size="10" fill="#57606a">单线程 · Dart 主 Isolate · 不可阻塞</text>
+
+      <!-- MicroTask Queue -->
+      <rect x="32" y="88" width="351" height="108" rx="7" fill="rgba(56,139,253,.1)" stroke="#388bfd" stroke-width="1.2"/>
+      <text x="207" y="107" text-anchor="middle" font-size="11.5" font-weight="700" fill="#0550ae">① MicroTask Queue</text>
+      <rect x="270" y="93" width="100" height="18" rx="9" fill="rgba(56,139,253,.25)"/>
+      <text x="320" y="106" text-anchor="middle" font-size="9.5" fill="#0550ae" font-weight="600">高优先级·全部清空</text>
+      <line x1="42" y1="114" x2="373" y2="114" stroke="#388bfd" stroke-width="0.5" opacity="0.35"/>
+      <text x="52" y="131" font-size="11" fill="#57606a">• scheduleMicrotask()</text>
+      <text x="52" y="148" font-size="11" fill="#57606a">• Future.then() / Future.microtask()</text>
+      <text x="52" y="165" font-size="11" fill="#57606a">• await 后面的回调</text>
+      <text x="52" y="182" font-size="11" fill="#57606a">• MicroTask 未清空时，Event Queue 暂停</text>
+
+      <!-- 箭头 MicroTask → Event -->
+      <line x1="207" y1="196" x2="207" y2="216" stroke="#388bfd" stroke-width="1.5" marker-end="url(#rl-ab)"/>
+      <text x="218" y="210" font-size="10" fill="#57606a">清空后</text>
+
+      <!-- Event Queue -->
+      <rect x="32" y="218" width="351" height="198" rx="7" fill="rgba(56,139,253,.06)" stroke="#388bfd" stroke-width="1.2"/>
+      <text x="207" y="237" text-anchor="middle" font-size="11.5" font-weight="700" fill="#0550ae">② Event Queue</text>
+      <rect x="270" y="223" width="100" height="18" rx="9" fill="rgba(56,139,253,.18)"/>
+      <text x="320" y="236" text-anchor="middle" font-size="9.5" fill="#0550ae" font-weight="600">低优先级·每次取一个</text>
+      <line x1="42" y1="244" x2="373" y2="244" stroke="#388bfd" stroke-width="0.5" opacity="0.35"/>
+      <text x="52" y="262" font-size="11" fill="#57606a">• Timer / Timer.periodic() 回调</text>
+      <text x="52" y="280" font-size="11" fill="#57606a">• 网络 / I/O 完成回调</text>
+      <text x="52" y="298" font-size="11" fill="#57606a">• 用户输入（点击、滑动）回调</text>
+      <text x="52" y="316" font-size="11" fill="#57606a">• Platform Channel 回调</text>
+      <!-- vsync 特别标注 -->
+      <rect x="42" y="326" width="331" height="24" rx="5" fill="rgba(255,166,87,.12)" stroke="#e3b341" stroke-width="1"/>
+      <text x="52" y="342" font-size="11" font-weight="700" fill="#bc4c00">★  vsync 帧回调（屏幕每 16ms 发出，触发渲染管线）</text>
+      <text x="52" y="396" font-size="10.5" fill="#57606a">其中某个 Event 调用 setState()</text>
+      <text x="52" y="412" font-size="10.5" fill="#57606a">→ markNeedsBuild() + scheduleFrame()</text>
+      <text x="52" y="428" font-size="10.5" fill="#57606a">→ 把"vsync 帧回调"放入 Event Queue</text>
+      <text x="52" y="444" font-size="10.5" fill="#57606a">→ 主线程继续处理其他事件，不阻塞</text>
+
+      <!-- setState label box -->
+      <rect x="42" y="360" width="180" height="90" rx="6" fill="rgba(255,166,87,.07)" stroke="#e3b341" stroke-width="1" stroke-dasharray="4,2"/>
+      <text x="50" y="375" font-size="10" fill="#bc4c00" font-weight="600">setState() 调用后：</text>
+
+      <!-- ══════ 右侧：渲染管线 ══════ -->
+      <rect x="500" y="40" width="385" height="480" rx="10" fill="rgba(63,185,80,.04)" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="692" y="62" text-anchor="middle" font-size="12" font-weight="700" fill="#3fb950" letter-spacing="2">渲 染 管 线</text>
+      <text x="692" y="77" text-anchor="middle" font-size="10" fill="#57606a">一帧 ≈ 16ms · vsync 驱动 · 四个阶段</text>
+
+      <!-- Build Phase -->
+      <rect x="517" y="88" width="351" height="90" rx="7" fill="rgba(63,185,80,.12)" stroke="#3fb950" stroke-width="1.2"/>
+      <text x="692" y="107" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1a7f37">① Build Phase</text>
+      <line x1="527" y1="114" x2="858" y2="114" stroke="#3fb950" stroke-width="0.5" opacity="0.35"/>
+      <text x="532" y="131" font-size="10.5" fill="#57606a">BuildOwner 收集所有 dirty Element</text>
+      <text x="532" y="148" font-size="10.5" fill="#57606a">State.build() 返回新 Widget 子树</text>
+      <text x="532" y="165" font-size="10.5" fill="#57606a">canUpdate? → 复用 Element or 销毁重建</text>
+
+      <line x1="692" y1="178" x2="692" y2="198" stroke="#3fb950" stroke-width="1.5" marker-end="url(#rl-ag)"/>
+
+      <!-- Layout Phase -->
+      <rect x="517" y="200" width="351" height="80" rx="7" fill="rgba(63,185,80,.08)" stroke="#3fb950" stroke-width="1.2"/>
+      <text x="692" y="219" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1a7f37">② Layout Phase</text>
+      <line x1="527" y1="226" x2="858" y2="226" stroke="#3fb950" stroke-width="0.5" opacity="0.35"/>
+      <text x="532" y="243" font-size="10.5" fill="#57606a">BoxConstraints 向下传 → performLayout()</text>
+      <text x="532" y="260" font-size="10.5" fill="#57606a">Size 向上返 → 父节点决定子节点位置</text>
+
+      <line x1="692" y1="280" x2="692" y2="300" stroke="#3fb950" stroke-width="1.5" marker-end="url(#rl-ag)"/>
+
+      <!-- Paint Phase -->
+      <rect x="517" y="302" width="351" height="90" rx="7" fill="rgba(63,185,80,.06)" stroke="#3fb950" stroke-width="1.2"/>
+      <text x="692" y="321" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1a7f37">③ Paint Phase</text>
+      <line x1="527" y1="328" x2="858" y2="328" stroke="#3fb950" stroke-width="0.5" opacity="0.35"/>
+      <text x="532" y="345" font-size="10.5" fill="#57606a">RenderObject.paint() → Canvas 绘制指令</text>
+      <text x="532" y="362" font-size="10.5" fill="#57606a">PictureRecorder → Picture → Layer 树</text>
+      <text x="532" y="379" font-size="10.5" fill="#57606a">RepaintBoundary 子树复用上帧 GPU 缓存</text>
+
+      <line x1="692" y1="392" x2="692" y2="412" stroke="#3fb950" stroke-width="1.5" marker-end="url(#rl-ag)"/>
+
+      <!-- Composite -->
+      <rect x="517" y="414" width="351" height="80" rx="7" fill="rgba(63,185,80,.04)" stroke="#3fb950" stroke-width="1.2"/>
+      <text x="692" y="433" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1a7f37">④ Composite</text>
+      <line x1="527" y1="440" x2="858" y2="440" stroke="#3fb950" stroke-width="0.5" opacity="0.35"/>
+      <text x="532" y="458" font-size="10.5" fill="#57606a">Engine 遍历 Layer 树 · Skia/Impeller 光栅化</text>
+      <text x="532" y="475" font-size="10.5" fill="#3fb950" font-weight="700">→ GPU 纹理合成 → 输出到屏幕 ✓</text>
+
+      <!-- ══════ 中间连接 ══════ -->
+      <!-- vsync 触发箭头: Event Queue → Build Phase (水平) -->
+      <line x1="383" y1="134" x2="500" y2="134" stroke="#e3b341" stroke-width="2" marker-end="url(#rl-ao)"/>
+      <rect x="388" y="116" width="108" height="21" rx="5" fill="rgba(255,166,87,.18)"/>
+      <text x="442" y="130" text-anchor="middle" font-size="10" font-weight="700" fill="#bc4c00">vsync 信号触发</text>
+
+      <!-- 帧结束回路: Composite 底部 → 绕回 Event Queue -->
+      <path d="M 692 494 L 692 545 L 207 545 L 207 416" fill="none" stroke="#57606a" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#rl-am)"/>
+      <rect x="350" y="534" width="200" height="20" rx="5" fill="rgba(139,148,158,.12)"/>
+      <text x="450" y="548" text-anchor="middle" font-size="10" fill="#57606a">帧渲染结束 → 回到事件循环</text>
+    </svg>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>卡顿的本质：主线程没有去读 Event Queue</h3>
+    <p>UI 卡顿不是"计算量太大导致帧率下降"，而是<strong>主线程被同步代码占满，根本无法去读 Event Queue</strong>，导致 vsync 信号和 Timer 回调全部积压。</p>
+    <div class="g2">
+      <div class="cmp-box ok">
+        <h4>✅ async/await（不卡）</h4>
+        <ul>
+          <li>遇到 <code>await</code>，把后续代码打包成回调登记好</li>
+          <li>主线程立刻返回，继续读 Event Queue</li>
+          <li>vsync 照常到来，计数器照常跳</li>
+          <li>I/O 完成后回调进 Event Queue，主线程取出执行</li>
+        </ul>
+      </div>
+      <div class="cmp-box bad">
+        <h4>❌ 同步大计算（卡）</h4>
+        <ul>
+          <li>主线程进入 while / for 循环同步执行</li>
+          <li>循环期间主线程无法读 Event Queue</li>
+          <li>vsync 信号进入 Event Queue 却无人取</li>
+          <li>Build / Layout / Paint 全部暂停，UI 冻结</li>
+        </ul>
+      </div>
+    </div>
+    <div class="tbl-wrap" style="margin-top:14px">
+      <table>
+        <tr><th>操作类型</th><th>主线程状态</th><th>会卡 UI？</th><th>解决方案</th></tr>
+        <tr class="tr-ok"><td>网络请求、文件 I/O、Timer</td><td>等通知，空闲</td><td>不卡</td><td><code>async/await</code> 即可</td></tr>
+        <tr class="tr-bad"><td>JSON 解析、图片处理、加密运算</td><td>亲自计算，占满</td><td>卡</td><td>用 <code>compute()</code> 扔到子 Isolate</td></tr>
+      </table>
+    </div>
+    <div class="hbox info">
+      <strong>判断口诀：</strong>主线程是在"等通知"还是在"亲自算"？等通知用 <code>async/await</code>，亲自算用 <code>compute()</code>。<code>async/await</code> 解决不了计算量大的问题，它只是让主线程"优雅地等"，并不新建任何线程。
     </div>
   </div>
 
@@ -2277,6 +2808,664 @@ class _ComplexState extends State<ComplexWidget>
       <li><a href="https://api.flutter.dev/flutter/widgets/AnimatedBuilder-class.html" target="_blank">AnimatedBuilder class</a> <span>— 通用动画 Widget 构建器</span></li>
       <li><a href="https://api.flutter.dev/flutter/animation/CurvedAnimation-class.html" target="_blank">CurvedAnimation class</a> <span>— 曲线动画包装</span></li>
       <li><a href="https://api.flutter.dev/flutter/scheduler/Ticker-class.html" target="_blank">Ticker class</a> <span>— 与 SchedulerBinding 连接的每帧回调机制</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     Ch 14 · Layer 树与 Composite 阶段
+══════════════════════════════════════════ -->
+<section class="chapter" id="ch14">
+  <div class="ch-head">
+    <span class="ch-num">CHAPTER 14</span>
+    <h2>Layer 树与 Composite 阶段</h2>
+    <span class="hint">渲染管线最后一公里</span>
+  </div>
+
+  <div class="card">
+    <h3>Paint Phase 产生了什么？</h3>
+    <p>Ch.6 讲过渲染管线分四步：Build → Layout → Paint → Composite。前三步都在 Dart/Framework 层，<strong>Composite 是唯一跨入 C++ Engine 的阶段</strong>。</p>
+    <p>Paint Phase 并不直接把像素写到屏幕——它生成一棵 <strong>Layer 树</strong>，Layer 树再交给 Engine 合成上屏。理解这棵树是理解 RepaintBoundary 性能优化、透明度/裁剪/变换的底层前提。</p>
+    <div class="flow"><span class="fb">RenderObject.paint()</span>
+  ↓
+<span class="fg">PaintingContext</span> — 收集绘制指令
+  ↓ 写入
+<span class="fo">PictureRecorder</span> → <span class="fo">Picture</span>（DisplayList，GPU 可执行的绘制命令序列）
+  ↓ 封装进
+<span class="fp">PictureLayer</span>（Layer 树叶子节点）
+  ↓ 汇聚成
+<span class="fb">Layer 树</span>（ContainerLayer 根 → 子 Layer 树）
+  ↓
+<span class="fr">Flutter Engine (C++)</span> → Skia / Impeller → GPU → 屏幕</div>
+  </div>
+
+  <div class="card">
+    <h3>Layer 类型速查</h3>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>Layer 类型</th><th>职责</th><th>对应 Widget/RenderObject</th></tr>
+        <tr><td><strong>PictureLayer</strong></td><td>持有一个 <code>Picture</code>，是 Layer 树的叶子节点，真正存储绘制指令</td><td>普通 RenderObject.paint() 的输出</td></tr>
+        <tr><td><strong>OffsetLayer</strong></td><td>平移子层，不产生像素，只做坐标偏移</td><td>根 Layer、ContainerLayer 默认</td></tr>
+        <tr><td><strong>TransformLayer</strong></td><td>对子层做矩阵变换（旋转/缩放/透视）</td><td>Transform widget</td></tr>
+        <tr><td><strong>OpacityLayer</strong></td><td>对子层整体应用透明度</td><td>Opacity widget（透明度 &lt; 1 时）</td></tr>
+        <tr><td><strong>ClipRectLayer</strong></td><td>矩形裁剪子层</td><td>ClipRect widget</td></tr>
+        <tr><td><strong>ClipRRectLayer</strong></td><td>圆角矩形裁剪</td><td>ClipRRect widget</td></tr>
+        <tr><td><strong>ClipPathLayer</strong></td><td>任意路径裁剪</td><td>ClipPath widget</td></tr>
+        <tr><td><strong>BackdropFilterLayer</strong></td><td>对下层内容做模糊/滤镜</td><td>BackdropFilter widget</td></tr>
+        <tr><td><strong>PhysicalModelLayer</strong></td><td>阴影 + 裁剪（Material 阴影的来源）</td><td>Material / Card</td></tr>
+      </table>
+    </div>
+    <div class="hbox info"><strong>关键结论：</strong>透明度、变换、裁剪等效果都不是在 Paint 阶段像素级处理的，而是生成对应的 Layer 节点，交给 GPU 在 Composite 时以硬件加速合成。这是 Flutter 性能高的根本原因之一。</div>
+  </div>
+
+  <div class="card">
+    <h3>RepaintBoundary 的真正底层原理</h3>
+    <p>Ch.6 提到 <code>RepaintBoundary</code> 可以隔离重绘区域，但为什么？答案在 Layer 树里。</p>
+    <div class="flow"><span class="fa">普通 RenderObject</span>
+  共用父节点的 <span class="fo">PictureLayer</span>
+  父节点脏了 → 整块 PictureLayer 重新录制 → <span class="fr">所有子节点都重绘</span>
+
+<span class="fa">加了 RepaintBoundary 的 RenderObject</span>
+  拥有自己独立的 <span class="fg">OffsetLayer</span>（新建 PaintingContext）
+  父节点脏了 → 父的 PictureLayer 重录 → <span class="fg">子的 OffsetLayer 直接复用缓存</span>
+  子节点脏了 → 只重录子自己的 PictureLayer → <span class="fg">父的 PictureLayer 不受影响</span></div>
+    <p><strong>实质：</strong>RepaintBoundary 让子树拥有独立的 Layer（实际是 <code>OffsetLayer</code>），Engine 在 Composite 时可以直接复用上一帧该 Layer 的 GPU 纹理缓存，不必重新光栅化。</p>
+    <div class="g2">
+      <div class="cmp-box bad">
+        <h4>不加 RepaintBoundary</h4>
+        <ul>
+          <li>父子共享 PictureLayer</li>
+          <li>父重绘 → 子一起重绘</li>
+          <li>适合静态组合 UI</li>
+        </ul>
+      </div>
+      <div class="cmp-box ok">
+        <h4>加 RepaintBoundary</h4>
+        <ul>
+          <li>子拥有独立 OffsetLayer</li>
+          <li>父重绘 → 子复用 GPU 缓存</li>
+          <li>适合高频动画、滚动列表中的复杂卡片</li>
+        </ul>
+      </div>
+    </div>
+    <div class="hbox warn"><strong>不要滥用：</strong>每个 RepaintBoundary 都占用独立 GPU 纹理内存。静态 UI 加了反而浪费内存、增加合成开销。只在<strong>频繁重绘的子树边界</strong>使用。</div>
+  </div>
+
+  <div class="card">
+    <h3>Composite 阶段：Engine 做了什么</h3>
+    <div class="flow"><span class="fb">Flutter Framework</span> 把 Layer 树根节点传给 <span class="fg">Scene</span>
+  ↓ window.render(scene)
+<span class="fb">Flutter Engine (C++)</span>
+  ① 遍历 Layer 树，决定每个 Layer 是否需要重新光栅化（rasterize）
+  ② 已缓存的 Layer → 直接复用 GPU 纹理
+  ③ 需要重绘的 Layer → 调用 Skia / Impeller 光栅化 Picture → 生成 GPU 纹理
+  ④ 把所有 GPU 纹理按 Layer 树结构合成（composite）
+  ↓
+<span class="fg">GPU</span> 输出最终帧 → 屏幕</div>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>渲染器</th><th>原理</th><th>优势</th></tr>
+        <tr><td><strong>Skia</strong></td><td>JIT 编译 GLSL Shader，首帧可能卡顿（shader compilation jank）</td><td>成熟稳定，兼容性好</td></tr>
+        <tr><td><strong>Impeller</strong></td><td>AOT 预编译所有 Shader（打包时编译），彻底消除 shader jank</td><td>首帧流畅，iOS 默认，Android 逐步启用</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>用 DevTools 分析 Layer 树</h3>
+    <p><strong>Flutter DevTools → Performance → Repaint Rainbow</strong>：开启后，每次重绘的区域会闪烁彩色边框，直观看出哪些区域在频繁重绘。</p>
+    <p><strong>Flutter DevTools → Widget Inspector → Highlight Repaints</strong>：高亮所有正在重绘的 Widget，定位性能瓶颈。</p>
+    <div class="hbox ok">
+      <strong>调试口诀：</strong>看到大面积频繁彩虹闪烁 → 找出高频重绘的子树 → 在其边界加 <code>RepaintBoundary</code> → 验证闪烁范围缩小。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>完整渲染管线（补全版）</h3>
+    <p style="color:var(--muted);font-size:13.5px;margin-bottom:16px;">Flutter 每渲染一帧，都会按顺序经过以下四个阶段。每个阶段各司其职，前一个阶段的输出是下一个阶段的输入。</p>
+
+    <div class="lc">
+      <div class="lc-row">
+        <div class="lc-box b" style="min-width:180px">① Build Phase</div>
+        <span class="lc-note">框架收集所有被标记为"脏"的 Element，依次调用 <code>State.build()</code> 拿到新的 Widget 子树。然后对比新旧 Widget（diff），决定哪些 Element 可以复用、哪些需要销毁重建。<br><strong style="color:var(--text)">产出：</strong>Element 树更新完毕，每个 Element 知道自己对应哪个 Widget。</span>
+      </div>
+      <div class="lc-arr" style="padding-left:85px">↓</div>
+      <div class="lc-row">
+        <div class="lc-box b" style="min-width:180px">② Layout Phase</div>
+        <span class="lc-note">从根节点出发，父节点把 <code>BoxConstraints</code>（允许的最小/最大宽高范围）向下传给每一个子节点。子节点在收到约束后，调用 <code>performLayout()</code>，在约束范围内决定自己的 <code>size</code>，再把 size 返回给父节点。父节点根据子节点的 size 决定子节点摆放的位置（Offset）。<br><strong style="color:var(--text)">产出：</strong>每个 RenderObject 都有了确定的尺寸和在屏幕上的位置。</span>
+      </div>
+      <div class="lc-arr" style="padding-left:85px">↓</div>
+      <div class="lc-row">
+        <div class="lc-box b" style="min-width:180px">③ Paint Phase</div>
+        <span class="lc-note">从根节点出发，依次调用每个 RenderObject 的 <code>paint()</code>。<code>paint()</code> 内部通过 <code>Canvas</code> 发出绘制指令（画矩形、画文字、画路径等），这些指令不会立刻变成像素，而是被 <code>PictureRecorder</code> 录制成一个 <code>Picture</code>（可理解为"绘制脚本"）。多个 RenderObject 的 Picture 被组织进 <strong>Layer 树</strong>——普通节点共用同一个 PictureLayer，加了 <code>RepaintBoundary</code> 的子树拥有独立的 Layer，可以在下一帧直接复用上帧的缓存，不必重新录制。<br><strong style="color:var(--text)">产出：</strong>一棵 Layer 树，每个叶子节点持有一份 Picture（绘制脚本）。</span>
+      </div>
+      <div class="lc-arr" style="padding-left:85px">↓</div>
+      <div class="lc-row">
+        <div class="lc-box b" style="min-width:180px">④ Composite</div>
+        <span class="lc-note">Flutter Framework 把 Layer 树交给 C++ Engine。Engine 遍历 Layer 树，对每个 Layer 判断：如果上帧已经光栅化过且内容未变，直接复用 GPU 纹理缓存；如果内容有变化，则调用 Skia 或 Impeller 把 Picture"光栅化"成 GPU 纹理（真正变成像素）。最后把所有 GPU 纹理按 Layer 树的层叠顺序合成，输出最终画面到屏幕。<br><strong style="color:var(--text)">产出：</strong>屏幕上显示的那一帧画面。</span>
+      </div>
+    </div>
+
+    <div class="ch-divider"></div>
+
+    <p style="color:var(--muted);font-size:13px;margin-bottom:10px;">并不是每次更新都要完整走完四个阶段。Flutter 提供三种"标记"方法，精确控制从哪个阶段开始执行，避免不必要的计算：</p>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>触发方式</th><th>从哪个阶段开始</th><th>典型场景</th></tr>
+        <tr><td><code>setState()</code> → <code>markNeedsBuild()</code></td><td>① Build → ② → ③ → ④</td><td>State 数据变化，Widget 树需要重建</td></tr>
+        <tr><td><code>markNeedsLayout()</code></td><td>② Layout → ③ → ④（跳过 Build）</td><td>尺寸相关属性变化，但不需要重建 Widget</td></tr>
+        <tr><td><code>markNeedsPaint()</code></td><td>③ Paint → ④（跳过 Build + Layout）</td><td>只有视觉属性变化（颜色、进度），尺寸不变</td></tr>
+        <tr class="tr-ok"><td><code>RepaintBoundary</code> 子树</td><td>④ Composite（③ 直接复用缓存）</td><td>子树内容未变，父节点重绘时子树完全不动</td></tr>
+      </table>
+    </div>
+    <div class="hbox ok"><strong>选用原则：</strong>能用 <code>markNeedsPaint()</code> 就不用 <code>markNeedsLayout()</code>，能用 <code>RepaintBoundary</code> 隔离就不让子树参与每帧重绘。触发的阶段越靠后，开销越小。</div>
+  </div>
+
+  <div class="card">
+    <h3>参考资源</h3>
+    <ul class="res-links">
+      <li><a href="https://docs.flutter.dev/perf/rendering-performance" target="_blank">Rendering performance</a> <span>— 官方渲染性能优化，含 RepaintBoundary 使用指南</span></li>
+      <li><a href="https://api.flutter.dev/flutter/rendering/Layer-class.html" target="_blank">Layer class</a> <span>— Layer 基类 API 文档</span></li>
+      <li><a href="https://api.flutter.dev/flutter/rendering/PictureLayer-class.html" target="_blank">PictureLayer class</a> <span>— 持有 Picture 的叶子 Layer</span></li>
+      <li><a href="https://docs.flutter.dev/tools/devtools/performance" target="_blank">Flutter DevTools Performance</a> <span>— Repaint Rainbow 与帧分析工具</span></li>
+      <li><a href="https://github.com/flutter/flutter/wiki/Impeller" target="_blank">Impeller</a> <span>— Flutter 新渲染器设计文档</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     Ch 15 · RenderObject 深入
+══════════════════════════════════════════ -->
+<section class="chapter" id="ch15">
+  <div class="ch-head">
+    <span class="ch-num">CHAPTER 15</span>
+    <h2>RenderObject 深入</h2>
+    <span class="hint">performLayout / paint / Canvas API — 自定义渲染的完整路径</span>
+  </div>
+
+  <div class="card">
+    <h3>从三棵树到 RenderObject</h3>
+    <p>前面的章节讲的是三棵树的协作流程，这一章进入 RenderObject 树的内部，回答一个问题：<strong>RenderObject 自己是怎么测量尺寸、怎么把像素画出来的？</strong></p>
+    <div class="flow"><span class="fb">LeafRenderObjectWidget</span>   （Widget 树）
+  ↓ createElement()
+<span class="fo">LeafRenderObjectElement</span>  （Element 树）
+  ↓ createRenderObject()
+<span class="fg">RenderBox</span>               （RenderObject 树）
+  ├── <span class="fp">performLayout()</span>  — 测量自己的尺寸，安排子节点位置
+  └── <span class="fp">paint()</span>         — 用 Canvas 把像素画出来</div>
+    <p>你自定义一个组件的最底层，就是继承 <code>RenderBox</code>（或 <code>RenderSliver</code>），实现这两个方法。</p>
+  </div>
+
+  <div class="card">
+    <h3>BoxConstraints：布局的核心约束模型</h3>
+    <p><code>BoxConstraints(minWidth, maxWidth, minHeight, maxHeight)</code> 是父传给子的"框"，子必须在这个框内决定自己的 Size。</p>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>约束类型</th><th>条件</th><th>含义</th><th>典型来源</th></tr>
+        <tr><td><strong>Tight（紧）</strong></td><td>minW == maxW &amp;&amp; minH == maxH</td><td>子的尺寸被完全固定，没有选择权</td><td>SizedBox、ConstrainedBox、屏幕根节点</td></tr>
+        <tr><td><strong>Loose（松）</strong></td><td>minW == 0 &amp;&amp; minH == 0</td><td>子可以在 0 到 max 范围内自由选择</td><td>Column/Row 的主轴方向、Center</td></tr>
+        <tr><td><strong>Bounded（有界）</strong></td><td>max &lt; infinity</td><td>子有明确的上限</td><td>大多数正常布局</td></tr>
+        <tr><td><strong>Unbounded（无界）</strong></td><td>max == infinity</td><td>子可以要多大就多大</td><td>ListView 主轴方向、Column 主轴</td></tr>
+      </table>
+    </div>
+    <div class="hbox warn"><strong>经典 Bug：</strong>在 Column 里放 ListView 会报 "Vertical viewport was given unbounded height"——Column 给子传 unbounded 高度约束，ListView 不知道自己该多高。解决：给 ListView 加 <code>Expanded</code> 或固定高度。</div>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// performLayout 里读取约束、设置尺寸的标准写法
+@override
+void performLayout() {
+  // constraints 是父传下来的 BoxConstraints
+  final double width = constraints.maxWidth;   // 撑满父宽
+  final double height = constraints.constrainHeight(48.0); // 尝试48，约束内取值
+  size = Size(width, height); // 必须在 performLayout 里设置 size！
+}</code></pre></div>
+  </div>
+
+  <div class="card">
+    <h3>Canvas API 速查</h3>
+    <p><code>paint(PaintingContext context, Offset offset)</code> 里通过 <code>context.canvas</code> 拿到 Canvas，然后用以下 API 绘制：</p>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>API</th><th>用途</th><th>关键参数</th></tr>
+        <tr><td><code>canvas.drawRect(rect, paint)</code></td><td>画矩形</td><td>Rect.fromLTWH / Rect.fromLTRB</td></tr>
+        <tr><td><code>canvas.drawRRect(rrect, paint)</code></td><td>画圆角矩形</td><td>RRect.fromRectAndRadius</td></tr>
+        <tr><td><code>canvas.drawCircle(center, radius, paint)</code></td><td>画圆</td><td>Offset center, double radius</td></tr>
+        <tr><td><code>canvas.drawLine(p1, p2, paint)</code></td><td>画线段</td><td>两个 Offset</td></tr>
+        <tr><td><code>canvas.drawPath(path, paint)</code></td><td>画任意路径</td><td>Path 对象</td></tr>
+        <tr><td><code>canvas.drawArc(rect, start, sweep, useCenter, paint)</code></td><td>画弧线/扇形</td><td>弧度制，0 = 右侧水平方向</td></tr>
+        <tr><td><code>canvas.drawParagraph(paragraph, offset)</code></td><td>画文字</td><td>需先用 ParagraphBuilder 构建</td></tr>
+        <tr><td><code>canvas.save() / restore()</code></td><td>保存/恢复画布状态</td><td>变换、裁剪的作用域隔离</td></tr>
+        <tr><td><code>canvas.clipRect(rect)</code></td><td>矩形裁剪</td><td>影响后续所有绘制</td></tr>
+        <tr><td><code>canvas.translate(dx, dy)</code></td><td>平移坐标系</td><td>简化后续绘制的坐标计算</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Paint 对象配置速查</h3>
+      <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">final paint = Paint()
+  ..color = Colors.blue               // 颜色
+  ..style = PaintingStyle.fill        // 填充（fill）或描边（stroke）
+  ..strokeWidth = 2.0                 // 描边宽度（style = stroke 时有效）
+  ..strokeCap = StrokeCap.round       // 线段端点：butt / round / square
+  ..isAntiAlias = true                // 抗锯齿（默认 true）
+  ..shader = LinearGradient(          // 渐变着色器
+      colors: [Colors.red, Colors.blue],
+    ).createShader(Rect.fromLTWH(0, 0, width, height))
+  ..maskFilter = MaskFilter.blur(     // 模糊（阴影效果）
+      BlurStyle.normal, 4.0)
+  ..blendMode = BlendMode.srcOver;    // 混合模式</code></pre></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>自定义 RenderBox 完整示例：彩虹进度条</h3>
+    <p>这是三棵树 + 渲染原理的完整实战——从 Widget 到 Element 到 RenderObject，自己控制 <code>performLayout</code> 和 <code>paint</code>。</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// ── Step 1: Widget 层（描述配置，不可变）──
+// 继承 LeafRenderObjectWidget，因为没有子节点
+class RainbowProgressBar extends LeafRenderObjectWidget {
+  final double progress; // 0.0 ~ 1.0
+  final double height;
+
+  const RainbowProgressBar({
+    required this.progress,
+    this.height = 12.0,
+    super.key,
+  });
+
+  // Step 2: 创建 RenderObject（只在首次 mount 时调用一次）
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return RenderRainbowProgress(
+      progress: progress,
+      barHeight: height,
+    );
+  }
+
+  // Step 3: Widget rebuild 时更新 RenderObject（复用，不重建）
+  @override
+  void updateRenderObject(
+      BuildContext context, RenderRainbowProgress renderObject) {
+    renderObject
+      ..progress = progress  // setter 内部调用 markNeedsPaint()
+      ..barHeight = height;
+  }
+}
+
+// ── Step 4: RenderObject 层（真正测量 + 绘制）──
+class RenderRainbowProgress extends RenderBox {
+  double _progress;
+  double _barHeight;
+
+  RenderRainbowProgress({
+    required double progress,
+    required double barHeight,
+  })  : _progress = progress,
+        _barHeight = barHeight;
+
+  // Setter：外部更新属性时触发重绘（不需要重新 layout）
+  set progress(double value) {
+    if (_progress == value) return;
+    _progress = value;
+    markNeedsPaint(); // 只触发 Paint Phase，最轻量
+  }
+
+  set barHeight(double value) {
+    if (_barHeight == value) return;
+    _barHeight = value;
+    markNeedsLayout(); // 高度变了，需要重新 layout
+  }
+
+  // ── 告诉父节点这个 Widget 是否有固定尺寸偏好 ──
+  @override
+  double computeMinIntrinsicHeight(double width) => _barHeight;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) => _barHeight;
+
+  // ── Layout：测量并设置自己的 size ──
+  @override
+  void performLayout() {
+    // 撑满父宽，高度固定为 _barHeight（在约束范围内取值）
+    size = Size(
+      constraints.maxWidth,
+      constraints.constrainHeight(_barHeight),
+    );
+  }
+
+  // ── Paint：用 Canvas 绘制彩虹进度条 ──
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final canvas = context.canvas;
+    final double w = size.width;
+    final double h = size.height;
+    final radius = Radius.circular(h / 2);
+
+    // 1. 背景轨道（灰色圆角矩形）
+    final trackPaint = Paint()
+      ..color = const Color(0xFFE0E0E0)
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(offset &amp; size, radius),
+      trackPaint,
+    );
+
+    // 2. 进度条（彩虹渐变，宽度 = 总宽 * progress）
+    final double progressWidth = w * _progress.clamp(0.0, 1.0);
+    if (progressWidth > 0) {
+      final progressRect = Rect.fromLTWH(
+          offset.dx, offset.dy, progressWidth, h);
+      final progressPaint = Paint()
+        ..shader = const LinearGradient(
+          colors: [
+            Color(0xFFFF6B6B), // 红
+            Color(0xFFFFD93D), // 黄
+            Color(0xFF6BCB77), // 绿
+            Color(0xFF4ECDC4), // 青
+            Color(0xFF45B7D1), // 蓝
+            Color(0xFF9B59B6), // 紫
+          ],
+        ).createShader(Rect.fromLTWH(offset.dx, offset.dy, w, h))
+        ..style = PaintingStyle.fill;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(progressRect, radius),
+        progressPaint,
+      );
+    }
+  }
+}</code></pre></div>
+
+    <div class="hbox info">
+      <strong>三棵树对应关系：</strong><br>
+      Widget 树：<code>RainbowProgressBar</code>（不可变配置，持有 progress / height）<br>
+      Element 树：<code>LeafRenderObjectElement</code>（框架自动创建，连接 Widget ↔ RenderObject）<br>
+      RenderObject 树：<code>RenderRainbowProgress</code>（真正测量尺寸 + 用 Canvas 绘像素）
+    </div>
+
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// ── 使用示例（StatefulWidget 驱动数据变化）──
+class _DemoState extends State&lt;Demo&gt; {
+  double _progress = 0.5;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        RainbowProgressBar(progress: _progress, height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              onPressed: () => setState(() => _progress = (_progress - 0.1).clamp(0, 1)),
+              child: const Text('-10%'),
+            ),
+            const SizedBox(width: 16),
+            ElevatedButton(
+              onPressed: () => setState(() => _progress = (_progress + 0.1).clamp(0, 1)),
+              child: const Text('+10%'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}</code></pre></div>
+  </div>
+
+  <div class="card">
+    <h3>关键机制：updateRenderObject vs createRenderObject</h3>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>方法</th><th>何时调用</th><th>职责</th></tr>
+        <tr class="tr-ok"><td><strong>createRenderObject()</strong></td><td>Widget 首次 mount，Element.createRenderObject() 触发，<strong>只调用一次</strong></td><td>new 一个 RenderObject，设置初始属性</td></tr>
+        <tr class="tr-ok"><td><strong>updateRenderObject()</strong></td><td>父组件 setState() 导致 Widget rebuild，但类型未变（canUpdate = true），<strong>多次调用</strong></td><td>把新 Widget 的配置同步到已有 RenderObject，让 RenderObject 决定是否 markNeedsPaint / markNeedsLayout</td></tr>
+      </table>
+    </div>
+    <div class="hbox ok">
+      <strong>设计哲学：</strong>Widget 是轻量配置对象，随 setState 频繁 new；RenderObject 是重量级对象，最大化复用。<code>updateRenderObject</code> 就是两者之间的同步桥梁，只更新变化的属性，最小化重绘范围。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>mark 三兄弟的精确语义</h3>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>方法</th><th>触发阶段</th><th>何时用</th></tr>
+        <tr><td><code>markNeedsBuild()</code></td><td>Build + Layout + Paint</td><td>State 变化需要 Widget 重建（由 setState 调用）</td></tr>
+        <tr><td><code>markNeedsLayout()</code></td><td>Layout + Paint</td><td>尺寸/约束相关属性变了（barHeight 变化）</td></tr>
+        <tr><td><code>markNeedsPaint()</code></td><td>Paint only</td><td>只有视觉属性变了，尺寸不变（progress 变化、颜色变化）</td></tr>
+      </table>
+    </div>
+    <div class="hbox info"><strong>性能原则：</strong>setter 里能用 <code>markNeedsPaint()</code> 就不用 <code>markNeedsLayout()</code>——少触发一个 Layout Phase，节省计算。只有影响到自身 <code>size</code> 或子节点位置的属性才需要 <code>markNeedsLayout()</code>。</div>
+  </div>
+
+  <div class="card">
+    <h3>有子节点的 RenderBox（SingleChildRenderObjectWidget）</h3>
+    <p>有子节点时继承 <code>SingleChildRenderObjectWidget</code>，RenderObject 继承 <code>RenderProxyBox</code> 或 <code>RenderBox with RenderObjectWithChildMixin</code>，需要手动布局子节点：</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">@override
+void performLayout() {
+  if (child != null) {
+    // 把约束传给子节点（可以修改约束，实现 Padding / SizedBox 效果）
+    child!.layout(constraints, parentUsesSize: true);
+    size = child!.size; // 跟随子节点大小
+  } else {
+    size = constraints.smallest;
+  }
+}
+
+@override
+void paint(PaintingContext context, Offset offset) {
+  if (child != null) {
+    // 先画背景，再画子节点
+    context.canvas.drawRect(offset &amp; size, _backgroundPaint);
+    context.paintChild(child!, offset); // 让子节点自己画
+  }
+}</code></pre></div>
+    <div class="hbox warn"><strong>注意：</strong>调用 <code>child.layout()</code> 时，<code>parentUsesSize: true</code> 表示父节点依赖子的 size。设置为 false 时 Flutter 可以做更多优化（子重新 layout 不强制触发父重绘）。</div>
+  </div>
+
+  <div class="card">
+    <h3>参考资源</h3>
+    <ul class="res-links">
+      <li><a href="https://api.flutter.dev/flutter/rendering/RenderBox-class.html" target="_blank">RenderBox class</a> <span>— RenderBox API 文档，含 performLayout / paint 完整说明</span></li>
+      <li><a href="https://api.flutter.dev/flutter/dart-ui/Canvas-class.html" target="_blank">Canvas class</a> <span>— Canvas 所有绘制 API</span></li>
+      <li><a href="https://api.flutter.dev/flutter/dart-ui/Paint-class.html" target="_blank">Paint class</a> <span>— 画笔配置：颜色、Shader、混合模式等</span></li>
+      <li><a href="https://api.flutter.dev/flutter/rendering/BoxConstraints-class.html" target="_blank">BoxConstraints class</a> <span>— 约束模型 API，tight/loose/bounded/unbounded</span></li>
+      <li><a href="https://docs.flutter.dev/ui/layout/constraints" target="_blank">Understanding constraints</a> <span>— 官方约束模型深度解析（必读）</span></li>
+      <li><a href="https://api.flutter.dev/flutter/widgets/LeafRenderObjectWidget-class.html" target="_blank">LeafRenderObjectWidget class</a> <span>— 无子节点自定义渲染 Widget 基类</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     Ch 16 · 性能优化实践
+══════════════════════════════════════════ -->
+<section class="chapter" id="ch16">
+  <div class="ch-head">
+    <span class="ch-num">CHAPTER 16</span>
+    <h2>性能优化实践</h2>
+    <span class="hint">基于原理推导，结合官方最佳实践</span>
+  </div>
+
+  <div class="card">
+    <h3>优化的根本原则</h3>
+    <p>所有性能优化都从三棵树、渲染管线、事件循环三个原理推导而来。不是记规则，而是理解原理后自然得出的结论。</p>
+    <div class="hbox info">官方参考：<a href="https://docs.flutter.dev/perf/best-practices" target="_blank" style="color:var(--blue)">Flutter Performance Best Practices</a> — 官方性能优化最佳实践文档</div>
+  </div>
+
+  <div class="card">
+    <h3>从三棵树推导的优化</h3>
+
+    <p><strong>① const Widget — 最廉价的优化</strong></p>
+    <p>原理：<code>Element.updateChild()</code> 中，新旧 Widget 引用相等（<code>child.widget == newWidget</code>）时直接跳过，不调用 <code>canUpdate</code>，不调用 <code>updateRenderObject</code>，子树完全不动。</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// ❌ 父组件每次 rebuild，Icon 都会 new 一个新对象，触发 updateRenderObject
+build() => Icon(Icons.home);
+
+// ✅ 编译期唯一实例，引用相等，diff 直接跳过
+build() => const Icon(Icons.home);</code></pre></div>
+
+    <div class="ch-divider"></div>
+
+    <p><strong>② 缩小 StatefulWidget 粒度</strong></p>
+    <p>原理：<code>setState()</code> 只重建当前 Element 向下的子树。粒度越小，每次重建影响的节点越少。</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// ❌ 整个页面是一个 StatefulWidget，任何状态变化重建整页
+class BadPage extends StatefulWidget { ... }
+
+// ✅ 只把频繁变化的部分抽成独立 StatefulWidget
+class CounterWidget extends StatefulWidget { ... } // 只重建这一小块
+class StaticContent extends StatelessWidget { ... } // 永远不重建</code></pre></div>
+
+    <div class="ch-divider"></div>
+
+    <p><strong>③ 不要重写 Widget 的 operator==</strong></p>
+    <p>原理：<code>canUpdate()</code> 只判断 <code>runtimeType</code> 和 <code>key</code>，不用 <code>==</code>。重写 <code>operator==</code> 意味着必须同时重写 <code>hashCode</code>，引入额外计算开销，而且对 diff 没有任何收益。</p>
+    <div class="hbox warn">官方明确建议：不要在 Widget 对象上重写 <code>operator ==</code>。Widget 是值对象，频繁 new，重写 <code>==</code> 只增加开销。</div>
+  </div>
+
+  <div class="card">
+    <h3>从渲染管线 / Layer 树推导的优化</h3>
+
+    <p><strong>④ RepaintBoundary — 隔离高频重绘区域</strong></p>
+    <p>原理：子树拥有独立 Layer，Engine 在 Composite 阶段直接复用上帧 GPU 纹理，不重新光栅化。</p>
+    <div class="g2">
+      <div class="cmp-box ok">
+        <h4>适合加的场景</h4>
+        <ul>
+          <li>复杂动画组件边界</li>
+          <li>实时更新的图表、计时器</li>
+          <li>滚动列表中的复杂卡片</li>
+        </ul>
+      </div>
+      <div class="cmp-box bad">
+        <h4>不要滥用</h4>
+        <ul>
+          <li>每个 RepaintBoundary 占一份 GPU 纹理内存</li>
+          <li>静态 UI 加了反而增加合成开销</li>
+          <li>只在频繁重绘的子树边界使用</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="ch-divider"></div>
+
+    <p><strong>⑤ 避免使用 Opacity widget，改用半透明颜色或 AnimatedOpacity</strong></p>
+    <p>原理：<code>Opacity</code> widget 底层创建 <code>OpacityLayer</code>，强制子树离屏渲染再合成，即使子树内容没有变化也有额外 GPU 开销。</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// ❌ 创建 OpacityLayer，子树离屏渲染，有额外开销
+Opacity(opacity: 0.5, child: MyWidget())
+
+// ✅ 静态场景：直接用半透明颜色，不产生额外 Layer
+Container(color: Colors.red.withOpacity(0.5))
+
+// ✅ 动画场景：AnimatedOpacity 内部有优化，避免每帧全量重绘
+AnimatedOpacity(
+  opacity: _opacity,
+  duration: const Duration(milliseconds: 300),
+  child: MyWidget(),
+)</code></pre></div>
+
+    <div class="ch-divider"></div>
+
+    <p><strong>⑥ mark 方法精确匹配</strong></p>
+    <p>原理：三种 mark 方法触发的渲染阶段不同，触发阶段越靠后开销越小。</p>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>方法</th><th>触发阶段</th><th>使用时机</th></tr>
+        <tr><td><code>markNeedsBuild()</code></td><td>Build + Layout + Paint + Composite</td><td>State 数据变化，Widget 树需要重建（setState 调用）</td></tr>
+        <tr><td><code>markNeedsLayout()</code></td><td>Layout + Paint + Composite</td><td>尺寸相关属性变化（自定义 RenderObject）</td></tr>
+        <tr><td><code>markNeedsPaint()</code></td><td>Paint + Composite（最轻量）</td><td>只有视觉属性变化，尺寸不变（颜色、进度条进度）</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>从动画系统推导的优化</h3>
+
+    <p><strong>⑦ AnimatedBuilder 的 child 缓存</strong></p>
+    <p>原理：<code>AnimatedBuilder</code> 每帧都调用 <code>builder</code>。静态子树放在 <code>builder</code> 里每帧重建；放在 <code>child</code> 参数里，框架只创建一次并缓存，<code>builder</code> 收到的是同一个对象引用。</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// ❌ Text 每帧都重建，浪费
+AnimatedBuilder(
+  animation: _ctrl,
+  builder: (context, _) => Row(children: [
+    Transform.scale(scale: _ctrl.value, child: const Icon(Icons.star)),
+    const Text('标题'), // 静态内容放在 builder 里，每帧重建
+  ]),
+)
+
+// ✅ 静态部分放 child，框架缓存，builder 每帧复用同一实例
+AnimatedBuilder(
+  animation: _ctrl,
+  child: const Text('标题'),         // 只创建一次
+  builder: (context, child) => Row(children: [
+    Transform.scale(scale: _ctrl.value, child: const Icon(Icons.star)),
+    child!,                          // 复用缓存，不重建
+  ]),
+)</code></pre></div>
+  </div>
+
+  <div class="card">
+    <h3>从事件循环推导的优化</h3>
+
+    <p><strong>⑧ 耗时操作用 compute() 扔到 Isolate</strong></p>
+    <p>原理：主线程同步大计算会占满 Event Queue，vsync 信号进不来，UI 冻结。<code>compute()</code> 把计算扔到子 Isolate，主线程只等通知，不阻塞。</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// ❌ 主线程解析大 JSON，UI 冻结
+final data = jsonDecode(hugJsonString);
+
+// ✅ 扔给子 Isolate，主线程空闲
+final data = await compute(jsonDecode, hugeJsonString);</code></pre></div>
+
+    <div class="ch-divider"></div>
+
+    <p><strong>⑨ build() 必须是纯函数</strong></p>
+    <p>原理：Build Phase 每帧都可能执行，<code>build()</code> 里的代码每帧都跑。耗时操作放在 <code>build()</code> 里直接影响帧率。</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// ❌ 每帧都创建 StreamController，每帧都发起网络请求
+Widget build(BuildContext context) {
+  final controller = StreamController(); // 每帧 new
+  http.get(url);                         // 每帧请求
+  return Text('...');
+}
+
+// ✅ 一次性初始化放在 initState
+@override
+void initState() {
+  super.initState();
+  _controller = StreamController(); // 只创建一次
+  _loadData();                      // 只请求一次
+}</code></pre></div>
+  </div>
+
+  <div class="card">
+    <h3>BLoC / Stream 层面的优化</h3>
+
+    <p><strong>⑩ buildWhen 过滤不必要的重建</strong></p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// 只有 count 变化时才重建，其他字段变化不触发
+BlocBuilder&lt;MyBloc, MyState&gt;(
+  buildWhen: (prev, curr) =&gt; prev.count != curr.count,
+  builder: (context, state) =&gt; Text('${state.count}'),
+)</code></pre></div>
+
+    <p style="margin-top:12px"><strong>⑪ context.select 精准订阅单个字段</strong></p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// 只有 count 变化时，这个 Widget 才重建
+// 利用 InheritedElement 的切面依赖，O(1) 精准触发
+final count = context.select((MyBloc b) =&gt; b.state.count);</code></pre></div>
+  </div>
+
+  <div class="card">
+    <h3>优化决策速查表</h3>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>问题现象</th><th>根本原因</th><th>解决方案</th></tr>
+        <tr><td>父组件更新，所有子组件跟着重建</td><td>子组件没有 const 或粒度太粗</td><td>加 <code>const</code>，拆分 StatefulWidget</td></tr>
+        <tr><td>列表滚动帧率低</td><td>列表项重绘开销大</td><td>给复杂列表项加 <code>RepaintBoundary</code></td></tr>
+        <tr><td>透明度动画卡顿</td><td>Opacity widget 离屏渲染开销</td><td>改用 <code>AnimatedOpacity</code></td></tr>
+        <tr><td>动画中静态内容每帧重建</td><td>静态内容放在 AnimatedBuilder builder 里</td><td>移到 <code>child</code> 参数</td></tr>
+        <tr><td>点击按钮后 UI 冻结</td><td>主线程执行大计算</td><td>用 <code>compute()</code> 扔到 Isolate</td></tr>
+        <tr><td>BLoC 状态更新，不相关 UI 也重建</td><td>BlocBuilder 没有过滤</td><td>加 <code>buildWhen</code> 或用 <code>context.select</code></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>参考资源</h3>
+    <ul class="res-links">
+      <li><a href="https://docs.flutter.dev/perf/best-practices" target="_blank">Flutter Performance Best Practices</a> <span>— 官方性能优化最佳实践（本章主要来源）</span></li>
+      <li><a href="https://docs.flutter.dev/perf/rendering-performance" target="_blank">Rendering performance</a> <span>— 渲染性能优化，含 RepaintBoundary 使用指南</span></li>
+      <li><a href="https://docs.flutter.dev/tools/devtools/performance" target="_blank">Flutter DevTools Performance</a> <span>— Repaint Rainbow，帧率分析工具</span></li>
+      <li><a href="https://docs.flutter.dev/perf/impeller" target="_blank">Impeller rendering engine</a> <span>— Impeller 渲染器，解决 shader jank</span></li>
     </ul>
   </div>
 </section>

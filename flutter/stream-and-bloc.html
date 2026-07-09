@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stream 原理与 BLoC 源码透视</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f6f8fa;--bg-card:#ffffff;--bg-card2:#f0f3f6;--bg-deep:#f6f8fa;
+  --border:#d0d7de;--border2:#e4e8ec;
+  --text:#1f2328;--muted:#57606a;--dim:#b0b8c1;
+  --blue:#0969da;--cyan:#0550ae;--green:#1a7f37;--orange:#bc4c00;
+  --red:#cf222e;--purple:#6e40c9;--yellow:#9a6700;--pink:#bf3989;
+  --sidebar:240px;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;line-height:1.75;display:flex;min-height:100vh}
+.sidebar{width:var(--sidebar);min-width:var(--sidebar);background:var(--bg-card);border-right:1px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;z-index:100;scrollbar-width:thin}
+.sb-head{padding:18px 16px 10px;border-bottom:1px solid var(--border)}
+.sb-head h2{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-weight:600}
+.sb-head p{font-size:12px;color:var(--dim);margin-top:3px}
+.nav{list-style:none;padding:6px 0;flex:1}
+.nav li a{display:flex;align-items:center;gap:9px;padding:7px 14px;color:var(--muted);text-decoration:none;font-size:12.5px;border-left:3px solid transparent;transition:all .18s}
+.nav li a:hover{color:var(--text);background:var(--bg-card2)}
+.nav li.active a{color:var(--blue);border-left-color:var(--blue);background:rgba(88,166,255,.07)}
+.nav li.active .nn{background:rgba(88,166,255,.2);color:var(--blue)}
+.nn{background:var(--border);color:var(--muted);font-size:10px;padding:1px 6px;border-radius:4px;min-width:22px;text-align:center;flex-shrink:0;font-weight:600}
+.main{flex:1;padding:0;overflow-x:hidden}
+.main-inner{max-width:900px;margin:0 auto;padding:36px 44px}
+.hero{text-align:center;padding-bottom:40px;margin-bottom:40px;border-bottom:1px solid var(--border)}
+.hero h1{font-size:26px;font-weight:700;background:linear-gradient(135deg,#0969da,#6e40c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:6px}
+.hero .sub{color:var(--muted);font-size:13px}
+.chapter{margin-bottom:52px;scroll-margin-top:20px}
+.ch-head{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.ch-num{background:var(--blue);color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:5px;letter-spacing:.05em;flex-shrink:0}
+.ch-head h2{font-size:18px;font-weight:600}
+.ch-head .hint{color:var(--muted);font-size:12px;margin-left:auto;font-style:italic}
+.ch-divider{height:1px;background:linear-gradient(90deg,var(--border),transparent);margin:28px 0}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin-bottom:14px}
+.card:hover{border-color:#484f58;box-shadow:0 0 18px rgba(88,166,255,.04)}
+.card h3{font-size:13px;font-weight:600;color:var(--cyan);margin-bottom:10px}
+.card p{color:var(--muted);font-size:13.5px;margin-bottom:8px}
+.card p:last-child{margin-bottom:0}
+.card ul{list-style:none;padding:0}
+.card ul li{font-size:13.5px;color:var(--muted);padding:3px 0 3px 16px;position:relative}
+.card ul li::before{content:'▸';position:absolute;left:0;color:var(--blue);font-size:9px;top:8px}
+.card ul li strong,.card p strong{color:var(--text)}
+.hbox{border-radius:8px;padding:12px 16px;margin:10px 0;font-size:13px;color:var(--muted)}
+.hbox strong{color:var(--text)}
+.hbox.info{background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.22)}
+.hbox.warn{background:rgba(255,166,87,.06);border:1px solid rgba(255,166,87,.22)}
+.hbox.ok{background:rgba(86,211,100,.06);border:1px solid rgba(86,211,100,.22)}
+.hbox.bad{background:rgba(255,123,114,.06);border:1px solid rgba(255,123,114,.22)}
+.code-wrap{position:relative;margin:10px 0}
+.code-wrap pre{background:#f6f8fa;border:1px solid var(--border);border-radius:8px;padding:14px 18px;overflow-x:auto;font-family:'Fira Code','JetBrains Mono','SF Mono',Consolas,monospace;font-size:12.5px;line-height:1.65;color:#1f2328}
+.copy-btn{position:absolute;top:7px;right:7px;background:var(--bg-card2);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:11px;padding:2px 8px;transition:all .15s;font-family:inherit}
+.copy-btn:hover{background:var(--border);color:var(--text)}
+.ck{color:#cf222e}.ct{color:#0550ae}.cs{color:#0a3069}.cc{color:#6e7781;font-style:italic}.cn{color:#6e40c9}.cm{color:#953800}
+code{background:#eaeef2;border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-family:'Fira Code',monospace;font-size:12px;color:var(--cyan)}
+.tbl-wrap{overflow-x:auto;margin:10px 0;border-radius:8px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--bg-card2);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:9px 14px;text-align:left;border-bottom:1px solid var(--border)}
+td{padding:9px 14px;border-bottom:1px solid var(--border2);color:var(--muted);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td strong{color:var(--text)}
+.tr-ok td{background:rgba(86,211,100,.035)}.tr-bad td{background:rgba(255,123,114,.035)}
+.tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:12px;font-weight:500}
+.tag-g{background:rgba(86,211,100,.18);color:var(--green)}
+.tag-r{background:rgba(255,123,114,.18);color:var(--red)}
+.tag-b{background:rgba(88,166,255,.18);color:var(--blue)}
+.tag-o{background:rgba(255,166,87,.18);color:var(--orange)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0}
+.cmp-box{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.cmp-box h4{font-size:11px;font-weight:700;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
+.cmp-box.ok h4{color:var(--green)}.cmp-box.bad h4{color:var(--red)}.cmp-box.info h4{color:var(--blue)}
+.cmp-box ul{list-style:none;padding:0}
+.cmp-box ul li{font-size:12.5px;color:var(--muted);padding:2px 0 2px 14px;position:relative}
+.cmp-box ul li::before{content:'·';position:absolute;left:3px;color:var(--dim)}
+.flow{background:#f0f3f6;border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin:10px 0;font-family:'Fira Code',monospace;font-size:12px;color:#57606a;line-height:1.9;overflow-x:auto;white-space:pre}
+.flow .fa{color:var(--dim)}.flow .fb{color:var(--blue);font-weight:600}.flow .fg{color:var(--green)}.flow .fo{color:var(--orange)}.flow .fr{color:var(--red)}.flow .fp{color:var(--purple)}
+.lc{display:flex;flex-direction:column;gap:3px;margin:12px 0}
+.lc-row{display:flex;align-items:center;gap:10px}
+.lc-box{padding:5px 14px;border-radius:6px;font-family:monospace;font-size:12.5px;min-width:200px}
+.lc-box.b{background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.2);color:var(--blue)}
+.lc-box.g{background:rgba(86,211,100,.1);border:1px solid rgba(86,211,100,.2);color:var(--green)}
+.lc-box.o{background:rgba(255,166,87,.1);border:1px solid rgba(255,166,87,.2);color:var(--orange)}
+.lc-box.r{background:rgba(255,123,114,.1);border:1px solid rgba(255,123,114,.2);color:var(--red)}
+.lc-note{font-size:12px;color:var(--muted)}
+.lc-arr{color:var(--dim);font-size:14px;padding-left:8px}
+.res-links{list-style:none;padding:0}
+.res-links li{padding:4px 0;font-size:13px;color:var(--muted);border-bottom:1px solid var(--border2)}
+.res-links li:last-child{border-bottom:none}
+.res-links a{color:var(--blue);text-decoration:none;font-weight:500}
+.res-links a:hover{text-decoration:underline}
+.res-links li span{color:var(--dim);font-size:12px;margin-left:4px}
+.label{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;margin-right:6px;letter-spacing:.04em}
+.label-src{background:rgba(110,64,201,.15);color:var(--purple)}
+.label-key{background:rgba(9,105,218,.15);color:var(--blue)}
+@media(max-width:768px){
+  body{flex-direction:column}
+  .sidebar{width:100%;min-width:0;height:auto;position:static;border-right:none;border-bottom:1px solid var(--border)}
+  .main-inner{padding:22px 18px}
+  .g2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sb-head">
+    <h2>Stream 与 BLoC</h2>
+    <p>7 章 · 原理 + 源码透视</p>
+  </div>
+  <ul class="nav" id="nav">
+    <li data-ch="ch1"><a href="#ch1"><span class="nn">1</span>Stream 基础概念</a></li>
+    <li data-ch="ch2"><a href="#ch2"><span class="nn">2</span>StreamController</a></li>
+    <li data-ch="ch3"><a href="#ch3"><span class="nn">3</span>StreamSubscription</a></li>
+    <li data-ch="ch4"><a href="#ch4"><span class="nn">4</span>StreamBuilder</a></li>
+    <li data-ch="ch5"><a href="#ch5"><span class="nn">5</span>BLoC 源码透视</a></li>
+    <li data-ch="ch6"><a href="#ch6"><span class="nn">6</span>三者关系全景</a></li>
+    <li data-ch="ch7"><a href="#ch7"><span class="nn">7</span>async* 与 yield</a></li>
+  </ul>
+</aside>
+
+<main class="main">
+<div class="main-inner">
+
+<section class="hero">
+  <h1>Stream 原理与 BLoC 源码透视</h1>
+  <p class="sub">从 Stream 基础到 BLoC 底层实现 — 结合真实项目源码的系统梳理</p>
+</section>
+
+<!-- ══════════════════════════════════════════
+     Ch 1 · Stream 基础概念
+══════════════════════════════════════════ -->
+<section class="chapter" id="ch1">
+  <div class="ch-head">
+    <span class="ch-num">CHAPTER 1</span>
+    <h2>Stream 基础概念</h2>
+    <span class="hint">多次的 Future</span>
+  </div>
+
+  <div class="card">
+    <h3>Future vs Stream</h3>
+    <p><code>Future</code> 是"一次性的异步结果"，<code>Stream</code> 是"持续的异步数据序列"。两者都建立在事件循环之上，区别只在于数据次数。</p>
+    <div class="g2">
+      <div class="cmp-box info">
+        <h4>Future&lt;T&gt;</h4>
+        <ul>
+          <li>异步，返回一个值</li>
+          <li>只完成一次（成功或失败）</li>
+          <li>典型场景：网络请求、读文件</li>
+          <li><code>await</code> 等待结果</li>
+        </ul>
+      </div>
+      <div class="cmp-box info">
+        <h4>Stream&lt;T&gt;</h4>
+        <ul>
+          <li>异步，持续发出多个值</li>
+          <li>可以发出 0 到 N 个数据，最终关闭</li>
+          <li>典型场景：计时器、位置更新、WebSocket</li>
+          <li><code>listen()</code> 或 <code>await for</code> 接收</li>
+        </ul>
+      </div>
+    </div>
+    <div class="hbox info"><strong>与事件循环的关系：</strong>Stream 的每一个事件本质上就是 Event Queue 里的一个回调。<code>stream.listen(callback)</code> 相当于注册了一个持续接收 Event 的监听器。</div>
+  </div>
+
+  <div class="card">
+    <h3>Stream 的三种创建方式</h3>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// 方式一：从已有集合创建（立刻发完所有数据，然后关闭）
+final stream = Stream.fromIterable([1, 2, 3]);
+
+// 方式二：周期性发出事件（持续，不会自动关闭）
+// 每秒发出一个递增数字，count 从 0 开始
+final stream = Stream.periodic(
+  const Duration(seconds: 1),
+  (count) => count,
+);
+
+// 方式三：通过 StreamController 手动控制（最常用）
+final controller = StreamController&lt;String&gt;();
+controller.add('消息一');
+controller.add('消息二');
+controller.close(); // 关闭后 listener 会收到 done 事件</code></pre></div>
+  </div>
+
+  <div class="card">
+    <h3>执行顺序：同步代码先于 Stream 回调</h3>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">void main() {
+  final stream = Stream.fromIterable([1, 2, 3]);
+
+  stream.listen((value) {
+    print(value); // 进入 Event Queue
+  });
+
+  print('done'); // 同步，先执行
+}
+
+// 输出：done → 1 → 2 → 3</code></pre></div>
+    <p><code>stream.listen()</code> 只是登记回调，不会阻塞。<code>print('done')</code> 是同步代码，先执行完毕，三个数值的回调再从 Event Queue 依次取出执行。</p>
+  </div>
+
+  <div class="card">
+    <h3>await for：用同步风格消费 Stream</h3>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// await for 会等 Stream 关闭后才继续执行后面的代码
+Future&lt;void&gt; processStream() async {
+  final stream = Stream.fromIterable([1, 2, 3]);
+
+  await for (final value in stream) {
+    print(value); // 依次收到 1, 2, 3
+  }
+
+  print('Stream 已关闭，继续执行'); // Stream.close() 后才到这里
+}
+
+// 注意：对无限 Stream（如 Stream.periodic）使用 await for
+// 会导致后面的代码永远无法执行，需要配合 break 或 take()</code></pre></div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     Ch 2 · StreamController
+══════════════════════════════════════════ -->
+<section class="chapter" id="ch2">
+  <div class="ch-head">
+    <span class="ch-num">CHAPTER 2</span>
+    <h2>StreamController</h2>
+    <span class="hint">手动控制数据流的水龙头</span>
+  </div>
+
+  <div class="card">
+    <h3>基本用法</h3>
+    <p><code>StreamController</code> 是 Stream 的生产端——你决定什么时候往里放数据、什么时候关闭。</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// 创建控制器（水龙头）
+final controller = StreamController&lt;String&gt;();
+
+// 消费端：监听 Stream（水管出口）
+controller.stream.listen(
+  (data) => print('收到：$data'),
+  onError: (error) => print('出错：$error'),
+  onDone: () => print('Stream 已关闭'),
+);
+
+// 生产端：往 Stream 里放数据
+controller.add('第一条');
+controller.add('第二条');
+controller.addError(Exception('出了个错'));
+controller.add('第三条');
+
+// 关闭 Stream（触发 onDone 回调）
+await controller.close();</code></pre></div>
+  </div>
+
+  <div class="card">
+    <h3>单订阅 vs 广播 Stream</h3>
+    <p>这是 Stream 最重要的概念区分，踩过才知道有多坑。</p>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>特性</th><th>单订阅（默认）</th><th>广播（broadcast）</th></tr>
+        <tr><td><strong>监听者数量</strong></td><td>只能有 <strong>一个</strong> listener<br>第二个 listen() 直接报错</td><td>可以有 <strong>任意多个</strong> listener</td></tr>
+        <tr><td><strong>无 listener 时的数据</strong></td><td>缓存起来，listener 注册后立即发出</td><td><strong>直接丢弃</strong>，永远收不到</td></tr>
+        <tr><td><strong>典型用途</strong></td><td>文件读取、HTTP 响应（一对一）</td><td>事件总线、BLoC 状态流（一对多）</td></tr>
+        <tr><td><strong>创建方式</strong></td><td><code>StreamController()</code></td><td><code>StreamController.broadcast()</code></td></tr>
+      </table>
+    </div>
+
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// ❌ 单订阅 Stream 第二次 listen 会报错
+final controller = StreamController&lt;String&gt;();
+controller.stream.listen((d) => print('A: $d'));
+controller.stream.listen((d) => print('B: $d')); // 抛出异常！
+// Bad state: Stream has already been listened to.
+
+// ✅ 广播 Stream 支持多个 listener
+final controller = StreamController&lt;String&gt;.broadcast();
+controller.stream.listen((d) => print('A: $d'));
+controller.stream.listen((d) => print('B: $d')); // 正常
+
+controller.add('你好');
+// 输出：A: 你好
+//       B: 你好</code></pre></div>
+
+    <div class="hbox warn">
+      <strong>广播 Stream 的数据丢失陷阱：</strong>在 listener 注册之前 add() 的数据会直接丢弃。常见场景：用广播 Stream 做事件总线，事件在页面 initState 之前就发出了，页面永远收不到。
+    </div>
+
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">final controller = StreamController&lt;String&gt;.broadcast();
+
+controller.add('消息A'); // ← 此时没有 listener，直接丢弃
+
+controller.stream.listen((d) => print(d)); // 此时才注册
+
+controller.add('消息B'); // ← 有 listener，正常收到
+
+// 只打印：消息B</code></pre></div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     Ch 3 · StreamSubscription
+══════════════════════════════════════════ -->
+<section class="chapter" id="ch3">
+  <div class="ch-head">
+    <span class="ch-num">CHAPTER 3</span>
+    <h2>StreamSubscription</h2>
+    <span class="hint">订阅的生命周期管理</span>
+  </div>
+
+  <div class="card">
+    <h3>listen() 返回的是 StreamSubscription</h3>
+    <p><code>stream.listen()</code> 返回一个 <code>StreamSubscription</code> 对象，用它来管理这次订阅的生命周期。</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">final StreamSubscription&lt;int&gt; subscription = stream.listen(
+  (data) => print(data),
+);
+
+// 暂停接收（数据在单订阅 Stream 中会缓存）
+subscription.pause();
+
+// 恢复接收
+subscription.resume();
+
+// 取消订阅（必须在 dispose 里调用，否则内存泄漏）
+await subscription.cancel();</code></pre></div>
+    <div class="hbox bad"><strong>内存泄漏：</strong>如果不调用 <code>cancel()</code>，Stream 的回调会持续持有 Widget 的引用，即使 Widget 已经被销毁，导致内存泄漏甚至 <code>setState() called after dispose()</code> 崩溃。</div>
+  </div>
+
+  <div class="card">
+    <h3>在 StatefulWidget 里安全使用的标准写法</h3>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">class _MyState extends State&lt;MyWidget&gt; {
+  StreamSubscription&lt;String&gt;? _subscription;
+  String _value = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _subscription = myStream.listen((data) {
+      if (!mounted) return; // 安全检查
+      setState(() => _value = data);
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel(); // 必须取消！
+    super.dispose();
+  }
+}</code></pre></div>
+  </div>
+
+  <div class="card">
+    <h3>pause / resume：来自你的项目 TimeBloc</h3>
+    <p>你的 <code>TimeBloc</code> 里用了 <code>StreamSubscription</code> 的 <code>pause()</code> 和 <code>resume()</code>，这是一个真实的生产级用法：</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// 来自 time_bloc.dart（你的项目）
+class TimeBloc extends Bloc&lt;TimerEvent, TimerState&gt; {
+  StreamSubscription&lt;int&gt;? _tickerSubscription;
+
+  // 生成计时 Stream：每秒发出一个递减数字，共发 duration 次
+  Stream&lt;int&gt; _ticker(int duration) {
+    return Stream.periodic(
+      const Duration(seconds: 1),
+      (x) =&gt; duration - x - 1,
+    ).take(duration); // take(n)：只取前 n 个数据，然后自动关闭
+  }
+
+  void _onStarted(TimerStarted event, Emitter&lt;TimerState&gt; emit) {
+    emit(TimerRunning(event.duration));
+    _tickerSubscription?.cancel(); // 先取消旧的订阅
+    _tickerSubscription = _ticker(event.duration).listen(
+      (duration) =&gt; add(TimerTicked(duration)), // 每秒发一个事件给 Bloc
+    );
+  }
+
+  void _onPaused(TimerPaused event, Emitter&lt;TimerState&gt; emit) {
+    emit(TimerPausedState(state.duration));
+    _tickerSubscription?.pause(); // 暂停 Stream，不取消
+  }
+
+  void _onResumed(TimerResumed event, Emitter&lt;TimerState&gt; emit) {
+    emit(TimerRunning(state.duration));
+    _tickerSubscription?.resume(); // 恢复接收
+  }
+
+  @override
+  Future&lt;void&gt; close() {
+    _tickerSubscription?.cancel(); // Bloc 销毁时取消订阅
+    return super.close();
+  }
+}</code></pre></div>
+    <div class="hbox ok">
+      <strong>关键设计：</strong><code>pause()</code> 不会丢弃数据（单订阅 Stream 会缓存），<code>cancel()</code> 才会彻底终止。计时器暂停用 <code>pause()</code>，页面销毁或重置用 <code>cancel()</code>。
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     Ch 4 · StreamBuilder
+══════════════════════════════════════════ -->
+<section class="chapter" id="ch4">
+  <div class="ch-head">
+    <span class="ch-num">CHAPTER 4</span>
+    <h2>StreamBuilder</h2>
+    <span class="hint">把 Stream 和 UI 连接起来</span>
+  </div>
+
+  <div class="card">
+    <h3>StreamBuilder 封装了什么</h3>
+    <p>手动把 Stream 连接到 UI 需要写固定模板：<code>initState</code> 里 <code>listen</code>，回调里 <code>setState</code>，<code>dispose</code> 里 <code>cancel</code>。<code>StreamBuilder</code> 把这套模板封装好了。</p>
+    <div class="g2">
+      <div class="cmp-box bad">
+        <h4>手动写（冗长）</h4>
+        <ul>
+          <li>initState 里 listen</li>
+          <li>回调里 setState</li>
+          <li>dispose 里 cancel</li>
+          <li>mounted 检查</li>
+          <li>共约 20 行模板代码</li>
+        </ul>
+      </div>
+      <div class="cmp-box ok">
+        <h4>StreamBuilder（简洁）</h4>
+        <ul>
+          <li>自动管理 subscribe / unsubscribe</li>
+          <li>数据变化自动重建 UI</li>
+          <li>内置 ConnectionState 状态机</li>
+          <li>stream 变化时自动切换订阅</li>
+        </ul>
+      </div>
+    </div>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">StreamBuilder&lt;int&gt;(
+  stream: myStream,
+  initialData: 0, // 可选：Stream 还没发数据时的初始值
+  builder: (context, AsyncSnapshot&lt;int&gt; snapshot) {
+    switch (snapshot.connectionState) {
+      case ConnectionState.waiting:
+        return const CircularProgressIndicator();
+      case ConnectionState.active:
+        return Text('当前值：${snapshot.data}');
+      case ConnectionState.done:
+        return Text('Stream 已结束，最后值：${snapshot.data}');
+      case ConnectionState.none:
+        return const Text('没有 Stream');
+    }
+  },
+)</code></pre></div>
+  </div>
+
+  <div class="card">
+    <h3>AsyncSnapshot 的四种状态</h3>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>ConnectionState</th><th>含义</th><th>snapshot.data</th></tr>
+        <tr><td><strong>none</strong></td><td>stream 参数为 null</td><td>null 或 initialData</td></tr>
+        <tr><td><strong>waiting</strong></td><td>已连接 Stream，还没收到任何数据</td><td>null 或 initialData</td></tr>
+        <tr><td><strong>active</strong></td><td>正在接收数据（每次新数据到来都是此状态）</td><td>最新的数据值</td></tr>
+        <tr><td><strong>done</strong></td><td>Stream 已关闭（controller.close() 之后）</td><td>最后一次收到的数据</td></tr>
+      </table>
+    </div>
+    <div class="hbox info">
+      <strong>注意：</strong>页面刚打开时，<code>Stream.periodic</code> 第一个事件还没到，<code>snapshot.connectionState</code> 是 <code>waiting</code>，<code>snapshot.data</code> 是 <code>null</code>（除非设置了 <code>initialData</code>）。直接使用 <code>snapshot.data</code> 而不判断状态会导致 null 崩溃。
+    </div>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// ❌ 危险写法：snapshot.data 可能为 null
+Text('${snapshot.data}') // 显示 "null"
+
+// ✅ 安全写法一：设置 initialData
+StreamBuilder&lt;int&gt;(
+  stream: myStream,
+  initialData: 0,
+  builder: (context, snapshot) =&gt; Text('${snapshot.data}'),
+)
+
+// ✅ 安全写法二：判断 connectionState
+if (snapshot.connectionState == ConnectionState.waiting) {
+  return const CircularProgressIndicator();
+}
+return Text('${snapshot.data ?? 0}');</code></pre></div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     Ch 5 · BLoC 源码透视
+══════════════════════════════════════════ -->
+<section class="chapter" id="ch5">
+  <div class="ch-head">
+    <span class="ch-num">CHAPTER 5</span>
+    <h2>BLoC 源码透视</h2>
+    <span class="hint">用 Stream 眼光重新看 BLoC</span>
+  </div>
+
+  <div class="card">
+    <h3>BlocBase 的核心：两个 StreamController</h3>
+    <p>每一个 Bloc / Cubit 的底层，都持有两个广播 StreamController：</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// flutter_bloc 源码（简化）
+abstract class BlocBase&lt;State&gt; {
+  // 状态流：对外暴露，BlocBuilder / context.watch 监听的就是这个
+  final _stateController = StreamController&lt;State&gt;.broadcast();
+
+  // 事件流（仅 Bloc 有，Cubit 没有）：接收外部 add() 进来的事件
+  final _eventController = StreamController&lt;Event&gt;.broadcast();
+
+  Stream&lt;State&gt; get stream =&gt; _stateController.stream;
+
+  // emit() 本质就是往状态 Stream 里 add 一个新状态
+  void emit(State state) {
+    if (_stateController.isClosed) return;
+    _state = state;
+    _stateController.add(state); // ← 核心就是这一行
+  }
+
+  // Bloc 销毁时关闭两个 StreamController
+  Future&lt;void&gt; close() async {
+    await _stateController.close();
+    await _eventController.close();
+  }
+}</code></pre></div>
+    <div class="hbox info">
+      <strong>为什么用广播 Stream？</strong>因为同一个 Bloc 可能被多个 BlocBuilder、BlocListener 同时监听。单订阅 Stream 只允许一个 listener，必须用广播。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>emit() 到 UI 更新的完整链路</h3>
+    <div class="flow"><span class="fb">用户点击按钮</span>
+  context.read&lt;CalculateBloc&gt;().add(Increment())
+  ↓
+<span class="fb">Bloc 内部</span>
+  Increment 事件进入 _eventController（事件 Stream）
+  on&lt;Increment&gt; 的处理函数被调用
+  执行：emit(CalculateState(state.count + 1))
+  ↓
+  emit() 调用 _stateController.add(newState)
+  新状态进入状态 Stream（广播）
+  ↓
+<span class="fb">所有监听者收到通知</span>
+  BlocBuilder 的 StreamSubscription 回调触发
+  → 内部调用 setState()
+  → markNeedsBuild()
+  → scheduleFrame()
+  ↓
+<span class="fg">vsync 到来 → Build Phase → UI 更新</span></div>
+  </div>
+
+  <div class="card">
+    <h3>BlocBuilder 本质是 StreamBuilder</h3>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// 你写的
+BlocBuilder&lt;CalculateBloc, CalculateState&gt;(
+  builder: (context, state) =&gt; Text('${state.count}'),
+)
+
+// 它底层做的事（简化）
+StreamBuilder&lt;CalculateState&gt;(
+  stream: context.read&lt;CalculateBloc&gt;().stream, // 广播 Stream
+  builder: (context, snapshot) {
+    final state = snapshot.data ?? bloc.state;
+    return Text('${state.count}');
+  },
+)
+
+// buildWhen 对应 Stream 的 where() 过滤
+BlocBuilder&lt;MyBloc, MyState&gt;(
+  buildWhen: (prev, curr) =&gt; prev.count != curr.count,
+  // 相当于：bloc.stream.where((s) =&gt; prev.count != s.count)
+  builder: (context, state) =&gt; Text('${state.count}'),
+)</code></pre></div>
+  </div>
+
+  <div class="card">
+    <h3>BlocListener 本质是 StreamSubscription</h3>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// 你写的（来自 time_one.dart）
+BlocListener&lt;TimeBloc, TimerState&gt;(
+  listener: (context, state) {
+    if (state is TimerFinished) {
+      ScaffoldMessenger.of(context).showSnackBar(...);
+    }
+  },
+  child: ...,
+)
+
+// 底层做的事（简化）
+// 在 initState 里订阅
+_subscription = bloc.stream.listen((state) {
+  if (state is TimerFinished) {
+    ScaffoldMessenger.of(context).showSnackBar(...);
+  }
+});
+
+// 在 dispose 里取消
+_subscription?.cancel();</code></pre></div>
+    <div class="hbox ok">
+      <strong>BlocListener vs BlocBuilder 的本质区别：</strong><br>
+      BlocListener 是纯 <code>listen()</code>，只触发副作用（弹窗、跳转），<strong>不重建 UI</strong>。<br>
+      BlocBuilder 是 <code>StreamBuilder</code>，每次收到新状态都调用 <code>setState()</code>，<strong>重建 UI</strong>。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>on&lt;Event&gt; 本质是 Stream 事件监听</h3>
+    <p>你的 <code>CalculateBloc</code> 里的 <code>on&lt;Increment&gt;</code>，底层是在事件 Stream 上注册了一个过滤监听：</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// 你写的（calculate_bloc.dart）
+CalculateBloc() : super(CalculateState(0)) {
+  on&lt;Increment&gt;((event, emit) {
+    emit(CalculateState(state.count + 1));
+  });
+  on&lt;Decrement&gt;((event, emit) {
+    emit(CalculateState(state.count - 1));
+  });
+}
+
+// 底层做的事（简化）
+_eventController.stream
+  .where((event) =&gt; event is Increment) // 只处理 Increment 事件
+  .listen((event) {
+    emit(CalculateState(state.count + 1));
+  });
+
+_eventController.stream
+  .where((event) =&gt; event is Decrement)
+  .listen((event) {
+    emit(CalculateState(state.count - 1));
+  });</code></pre></div>
+  </div>
+
+  <div class="card">
+    <h3>BLoC 完整架构：Stream 视角</h3>
+    <div class="flow"><span class="fb">外部（UI）</span>
+  bloc.add(Increment())
+  ↓ 进入
+<span class="fo">事件 Stream</span>（StreamController.broadcast）
+  _eventController.stream
+  ↓ on&lt;Increment&gt; 过滤并处理
+<span class="fb">Bloc 内部逻辑</span>
+  执行业务逻辑
+  emit(newState)  →  _stateController.add(newState)
+  ↓ 进入
+<span class="fg">状态 Stream</span>（StreamController.broadcast）
+  bloc.stream
+  ↓ 多个监听者同时收到
+  ┌─────────────────────────────────────────┐
+  │ BlocBuilder → StreamBuilder → setState  │ ← 更新 UI
+  │ BlocListener → listen → 副作用回调      │ ← 弹窗/跳转
+  │ context.watch → dependOnInherited...    │ ← 精准重建
+  └─────────────────────────────────────────┘</div>
+    <div class="hbox ok">
+      <strong>一句话总结：</strong>BLoC 就是两个广播 StreamController 的封装——一个接收事件，一个发出状态。<code>add()</code> 往事件流里 push，<code>emit()</code> 往状态流里 push，UI 层监听状态流自动更新。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>参考资源</h3>
+    <ul class="res-links">
+      <li><a href="https://dart.dev/libraries/async/using-streams" target="_blank">Using streams in Dart</a> <span>— 官方 Stream 使用指南</span></li>
+      <li><a href="https://api.dart.dev/stable/dart-async/StreamController-class.html" target="_blank">StreamController class</a> <span>— StreamController API 文档</span></li>
+      <li><a href="https://api.dart.dev/stable/dart-async/StreamSubscription-class.html" target="_blank">StreamSubscription class</a> <span>— pause / resume / cancel API</span></li>
+      <li><a href="https://api.flutter.dev/flutter/widgets/StreamBuilder-class.html" target="_blank">StreamBuilder class</a> <span>— Flutter StreamBuilder API 文档</span></li>
+      <li><a href="https://github.com/felangel/bloc/blob/master/packages/bloc/lib/src/bloc_base.dart" target="_blank">BlocBase 源码</a> <span>— flutter_bloc BlocBase 实际实现</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     Ch 6 · 三者关系全景
+══════════════════════════════════════════ -->
+<section class="chapter" id="ch6">
+  <div class="ch-head">
+    <span class="ch-num">CHAPTER 6</span>
+    <h2>Stream / StreamController / StreamSubscription 三者关系</h2>
+    <span class="hint">全景梳理</span>
+  </div>
+
+  <div class="card">
+    <h3>一句话定位三者职责</h3>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>对象</th><th>角色</th><th>类比</th></tr>
+        <tr><td><strong>StreamController</strong></td><td>数据的<strong>生产端</strong>，控制数据何时进入管道</td><td>水龙头（你控制开关）</td></tr>
+        <tr><td><strong>Stream</strong></td><td>数据的<strong>定义与通道</strong>，本身是惰性的，没有人监听时什么都不发生</td><td>水管（通道本身）</td></tr>
+        <tr><td><strong>StreamSubscription</strong></td><td>一次<strong>订阅关系的容器</strong>，持有回调，控制订阅生命周期</td><td>打开水龙头后流出的水（激活的连接）</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>listen() 调用时发生了什么</h3>
+    <p>这句话是正确的：<em>"Stream 在被订阅时，会创建 StreamSubscription，并将 onData 等回调传给 StreamSubscription。"</em></p>
+    <p>完整过程如下：</p>
+    <div class="flow"><span class="fb">stream.listen(onData, onError: onError, onDone: onDone)</span>
+  ↓
+Stream 内部创建一个 <span class="fg">StreamSubscription</span> 对象
+  ↓
+把三个回调存入 StreamSubscription：
+  ├── <span class="fo">onData</span>    → 每次收到新数据时调用
+  ├── <span class="fo">onError</span>   → 收到错误时调用
+  └── <span class="fo">onDone</span>    → Stream 关闭时调用一次
+  ↓
+StreamSubscription 返回给调用方
+  ↓
+数据流激活——后续 controller.add() 的数据
+  会触发 StreamSubscription 内部的 onData 回调</div>
+    <div class="hbox info">
+      <strong>Stream 是惰性的：</strong>在 <code>listen()</code> 被调用之前，Stream 只是一个定义，什么都不会发生。<code>listen()</code> 这个动作才真正激活了数据流，创建了 StreamSubscription，数据才开始流动。
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>三者完整关系图</h3>
+    <div class="flow"><span class="fb">StreamController&lt;T&gt;</span>
+  ├── <span class="fo">.sink</span>          生产端入口
+  │     └── sink.add(data) / sink.addError() / sink.close()
+  └── <span class="fg">.stream</span>        Stream 对象（消费端出口）
+              │
+              │  <span class="fb">.listen(onData, onError, onDone)</span>
+              ↓
+       <span class="fp">StreamSubscription&lt;T&gt;</span>（一次订阅的容器）
+              ├── 存储回调：onData / onError / onDone
+              ├── <span class="fg">pause()</span>   暂停接收（单订阅会缓存数据）
+              ├── <span class="fg">resume()</span>  恢复接收
+              └── <span class="fg">cancel()</span>  彻底取消，释放资源
+
+<span class="fb">controller.add(data)</span>
+  ↓
+Stream 内部把 data 路由给所有活跃的 StreamSubscription
+  ↓
+每个 StreamSubscription 的 <span class="fo">onData</span> 回调被调用
+  ↓（对 Flutter 而言）
+回调里的 setState() → markNeedsBuild() → scheduleFrame()
+  ↓
+vsync 到来 → Build Phase → UI 更新</div>
+  </div>
+
+  <div class="card">
+    <h3>为什么 Stream 本身不持有数据</h3>
+    <p>Stream 只是"数据通道的定义"，它不缓存数据，不持有状态。真正缓存和路由数据的是 <code>StreamController</code> 内部的实现。</p>
+    <p>这个设计的好处：同一个 <code>Stream</code> 对象可以被多次描述、组合、变换（<code>.map()</code> / <code>.where()</code> / <code>.take()</code>），每次都产生新的 Stream 定义，直到有人 <code>listen()</code> 才真正激活执行。</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">final controller = StreamController&lt;int&gt;.broadcast();
+
+// 这三行只是在"描述"数据流，还没有任何执行
+final doubled = controller.stream.map((x) => x * 2);
+final evenOnly = doubled.where((x) => x % 2 == 0);
+final first3 = evenOnly.take(3);
+
+// listen() 才真正激活整条链
+first3.listen((v) => print(v));
+
+// 现在 add() 的数据才会经过 map → where → take → onData
+controller.add(1); // 2，偶数，通过
+controller.add(2); // 4，偶数，通过
+controller.add(3); // 6，偶数，通过（take(3) 后自动结束）</code></pre></div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     Ch 7 · async* 与 yield
+══════════════════════════════════════════ -->
+<section class="chapter" id="ch7">
+  <div class="ch-head">
+    <span class="ch-num">CHAPTER 7</span>
+    <h2>async* 与 yield</h2>
+    <span class="hint">用函数语法创建 Stream</span>
+  </div>
+
+  <div class="card">
+    <h3>基本语法</h3>
+    <p><code>async*</code> 把一个函数标记为"异步生成器"，该函数的返回类型是 <code>Stream&lt;T&gt;</code>。<code>yield</code> 向 Stream 发出一个值，然后暂停，等待下一次被消费。</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// async* 函数：返回 Stream，每次 yield 发出一个值
+Stream&lt;int&gt; countDown(int from) async* {
+  for (int i = from; i >= 0; i--) {
+    await Future.delayed(const Duration(seconds: 1));
+    yield i; // 发出当前值，函数在这里"暂停"
+             // 等消费者准备好后，才继续执行下一次循环
+  }
+  // 函数执行结束，Stream 自动关闭（onDone 触发）
+}
+
+// 使用
+countDown(3).listen((v) => print(v));
+// 每秒输出：3 → 2 → 1 → 0，然后 onDone 触发</code></pre></div>
+  </div>
+
+  <div class="card">
+    <h3>yield* ：委托给另一个 Stream / Iterable</h3>
+    <p><code>yield*</code> 把另一个 Stream 或 Iterable 的所有值依次转发出去，相当于"展开"。</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">Stream&lt;int&gt; combined() async* {
+  yield* countDown(3); // 先把 3→2→1→0 全部发出
+  yield* countDown(2); // 再把 2→1→0 全部发出
+  yield 99;            // 最后发一个额外的值
+}
+// 输出：3 2 1 0 2 1 0 99</code></pre></div>
+  </div>
+
+  <div class="card">
+    <h3>与 StreamController 的对比：拉模型 vs 推模型</h3>
+    <div class="g2">
+      <div class="cmp-box info">
+        <h4>async* / yield（拉模型）</h4>
+        <ul>
+          <li>每次 yield 后函数暂停</li>
+          <li>等消费者消费完才继续</li>
+          <li>数据生产和消费节奏自然同步</li>
+          <li>适合：顺序生成、有规律的数据序列</li>
+          <li>函数结束 Stream 自动关闭</li>
+        </ul>
+      </div>
+      <div class="cmp-box info">
+        <h4>StreamController（推模型）</h4>
+        <ul>
+          <li>随时可以 add()，不管消费者</li>
+          <li>广播模式下无人监听则数据丢失</li>
+          <li>适合：外部事件驱动（用户操作、网络）</li>
+          <li>需要手动 close()</li>
+          <li>BLoC 用的就是这种</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>改写 TimeBloc 的 _ticker</h3>
+    <p>你的项目里 <code>TimeBloc._ticker</code> 用 <code>Stream.periodic</code> 实现，用 <code>async*</code> 改写是完全等价的，且更直观：</p>
+    <div class="code-wrap"><button class="copy-btn">复制</button><pre><code class="dart">// 原写法（Stream.periodic + take）
+Stream&lt;int&gt; _ticker(int duration) {
+  return Stream.periodic(
+    const Duration(seconds: 1),
+    (x) =&gt; duration - x - 1,
+  ).take(duration);
+}
+
+// 等价的 async* 写法（逻辑更清晰）
+Stream&lt;int&gt; _ticker(int duration) async* {
+  for (int i = duration - 1; i &gt;= 0; i--) {
+    await Future.delayed(const Duration(seconds: 1));
+    yield i; // 每秒发出一个递减数字
+  }
+  // 循环结束，Stream 自动关闭，_tickerSubscription 收到 onDone
+}</code></pre></div>
+    <div class="hbox ok">两种写法在行为上完全一致，选哪个取决于可读性偏好。<code>async*</code> 更接近普通代码的写法，<code>Stream.periodic</code> 更函数式。</div>
+  </div>
+
+  <div class="card">
+    <h3>async* 与事件循环的关系</h3>
+    <p><code>async*</code> 函数里的 <code>await</code> 和普通 <code>async</code> 函数一样——遇到 <code>await</code> 主线程不会阻塞，把后续逻辑注册到事件循环，等待信号回来再继续。</p>
+    <div class="flow"><span class="fb">countDown(3).listen(onData)</span>
+  ↓ Stream 被激活，函数开始执行
+i = 3
+  await Future.delayed(1s)  → 主线程返回事件循环（不阻塞）
+  1秒后回调进 Event Queue → 继续执行
+  <span class="fo">yield 3</span>                   → 触发 onData(3)，函数暂停
+  ↓ 消费者处理完毕，函数继续
+i = 2
+  await Future.delayed(1s)  → 主线程返回事件循环
+  ...
+  <span class="fo">yield 0</span>                   → 触发 onData(0)，函数暂停
+  ↓ 循环结束，函数 return
+Stream 自动关闭              → 触发 onDone</div>
+  </div>
+
+  <div class="card">
+    <h3>参考资源</h3>
+    <ul class="res-links">
+      <li><a href="https://dart.dev/libraries/async/using-streams" target="_blank">Using streams in Dart</a> <span>— 官方 Stream 使用指南</span></li>
+      <li><a href="https://dart.dev/language/functions#generators" target="_blank">Generators (async* / yield)</a> <span>— 官方异步生成器文档</span></li>
+      <li><a href="https://api.dart.dev/stable/dart-async/StreamController-class.html" target="_blank">StreamController class</a> <span>— StreamController API 文档</span></li>
+      <li><a href="https://api.dart.dev/stable/dart-async/StreamSubscription-class.html" target="_blank">StreamSubscription class</a> <span>— pause / resume / cancel API</span></li>
+    </ul>
+  </div>
+</section>
+
+</div>
+</main>
+
+<script>
+const chapters = document.querySelectorAll('.chapter');
+const navItems = document.querySelectorAll('#nav li');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navItems.forEach(n => n.classList.remove('active'));
+      const target = document.querySelector(`#nav li[data-ch="${e.target.id}"]`);
+      if (target) {
+        target.classList.add('active');
+        target.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  });
+}, { rootMargin: '-20% 0px -60% 0px' });
+chapters.forEach(c => obs.observe(c));
+
+const KW = new Set(['abstract','as','async','await','break','case','catch','class','const','continue','covariant','default','deferred','do','dynamic','else','enum','export','extends','extension','external','factory','false','final','finally','for','Function','get','hide','if','implements','import','in','interface','is','late','library','mixin','new','null','on','operator','part','required','rethrow','return','sealed','set','show','static','super','switch','sync','this','throw','true','try','typedef','var','void','while','with','yield']);
+function hlDart(src) {
+  let out = '', i = 0;
+  const safe = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  while (i < src.length) {
+    if (src[i]==='/' && src[i+1]==='/') { let j=src.indexOf('\n',i); if(j<0)j=src.length; out+=`<span class="cc">${safe(src.slice(i,j))}</span>`;i=j;continue; }
+    if (src[i]==='/' && src[i+1]==='*') { let j=src.indexOf('*/',i+2);j=j<0?src.length:j+2; out+=`<span class="cc">${safe(src.slice(i,j))}</span>`;i=j;continue; }
+    if ((src[i]==='"'||src[i]==="'")&&src[i+1]===src[i]&&src[i+2]===src[i]) { const q=src[i].repeat(3);let j=src.indexOf(q,i+3);j=j<0?src.length:j+3; out+=`<span class="cs">${safe(src.slice(i,j))}</span>`;i=j;continue; }
+    if (src[i]==='"'||src[i]==="'") { const q=src[i];let j=i+1; while(j<src.length&&src[j]!==q&&src[j]!=='\n'){if(src[j]==='\\')j++;j++;} out+=`<span class="cs">${safe(src.slice(i,j+1))}</span>`;i=j+1;continue; }
+    if (/[a-zA-Z_$]/.test(src[i])) { let j=i+1;while(j<src.length&&/[a-zA-Z0-9_$]/.test(src[j]))j++; const w=src.slice(i,j); if(KW.has(w))out+=`<span class="ck">${w}</span>`;else if(/^[A-Z]/.test(w))out+=`<span class="ct">${w}</span>`;else out+=safe(w);i=j;continue; }
+    if (/[0-9]/.test(src[i])) { let j=i+1;while(j<src.length&&/[0-9._xXa-fA-F]/.test(src[j]))j++; out+=`<span class="cn">${safe(src.slice(i,j))}</span>`;i=j;continue; }
+    out+=safe(src[i]);i++;
+  }
+  return out;
+}
+document.querySelectorAll('code.dart').forEach(el => { el.innerHTML = hlDart(el.textContent); });
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const code = btn.closest('.code-wrap').querySelector('code');
+    navigator.clipboard.writeText(code.textContent).then(() => {
+      const orig = btn.textContent; btn.textContent='已复制 ✓'; btn.style.color='var(--green)';
+      setTimeout(()=>{btn.textContent=orig;btn.style.color='';},1500);
+    });
+  });
+});
+</script>
+</body>
+</html>
